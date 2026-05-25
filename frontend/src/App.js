@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 
 import {
@@ -13,30 +13,35 @@ function App() {
 
   const [portfolioData, setPortfolioData] = useState(null);
 
-  useEffect(() => {
+  const [portfolioInput, setPortfolioInput] = useState({
+    "AAPL": 5,
+    "TSLA": 2,
+    "TCS.NS": 10
+  });
 
-    axios.get("http://127.0.0.1:5000/portfolio")
-      .then(response => {
-        setPortfolioData(response.data);
-      })
-      .catch(error => {
-        console.error(error);
-      });
+  const handleChange = (symbol, value) => {
 
-  }, []);
+    setPortfolioInput({
+      ...portfolioInput,
+      [symbol]: Number(value)
+    });
+  };
 
-  if (!portfolioData) {
-    return <h2>Loading Portfolio Data...</h2>;
-  }
+  const analyzePortfolio = () => {
 
-  // Data for Pie Chart
+    axios.post(
+      "http://127.0.0.1:5000/portfolio",
+      portfolioInput
+    )
 
-  const chartData = portfolioData.stocks.map(stock => ({
-    name: stock.symbol,
-    value: stock.allocation_percentage
-  }));
+    .then(response => {
+      setPortfolioData(response.data);
+    })
 
-  // Chart Colors
+    .catch(error => {
+      console.error(error);
+    });
+  };
 
   const COLORS = [
     "#0088FE",
@@ -55,178 +60,190 @@ function App() {
       minHeight: "100vh"
     }}>
 
-      {/* Heading */}
+      <h1>Portfolio Risk Analyzer</h1>
 
-      <h1 style={{
-        marginBottom: "30px"
-      }}>
-        Portfolio Risk Analyzer
-      </h1>
-
-      {/* Dashboard Cards */}
-
-      <div style={{
-        display: "flex",
-        gap: "20px",
-        marginBottom: "40px",
-        flexWrap: "wrap"
-      }}>
-
-        <div style={cardStyle}>
-          <h3>Total Portfolio Value</h3>
-          <p style={cardText}>
-            ₹ {portfolioData.total_portfolio_value}
-          </p>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Risk Score</h3>
-          <p style={cardText}>
-            {portfolioData.risk_score}
-          </p>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Diversification</h3>
-          <p style={cardText}>
-            {portfolioData.diversification}
-          </p>
-        </div>
-
-        <div style={cardStyle}>
-          <h3>Top Risk Stock</h3>
-          <p style={cardText}>
-            {portfolioData.top_risk_stock}
-          </p>
-        </div>
-
-      </div>
-
-      {/* Pie Chart */}
+      {/* Portfolio Input */}
 
       <div style={{
         backgroundColor: "white",
         padding: "20px",
         borderRadius: "10px",
-        marginBottom: "40px",
-        width: "500px",
+        marginBottom: "30px",
+        width: "400px",
         boxShadow: "0px 2px 8px rgba(0,0,0,0.1)"
       }}>
 
-        <h2>Portfolio Allocation</h2>
+        <h2>Enter Portfolio</h2>
 
-        <PieChart width={450} height={320}>
+        <div style={{ marginBottom: "15px" }}>
 
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            outerRadius={110}
-            fill="#8884d8"
-            dataKey="value"
-            label
-          >
+          <label>AAPL Quantity:</label>
 
-            {chartData.map((entry, index) => (
+          <input
+            type="number"
+            value={portfolioInput["AAPL"]}
+            onChange={(e) =>
+              handleChange("AAPL", e.target.value)
+            }
+            style={inputStyle}
+          />
 
-              <Cell
-                key={`cell-${index}`}
-                fill={COLORS[index % COLORS.length]}
-              />
+        </div>
 
-            ))}
+        <div style={{ marginBottom: "15px" }}>
 
-          </Pie>
+          <label>TSLA Quantity:</label>
 
-          <Tooltip />
-          <Legend />
+          <input
+            type="number"
+            value={portfolioInput["TSLA"]}
+            onChange={(e) =>
+              handleChange("TSLA", e.target.value)
+            }
+            style={inputStyle}
+          />
 
-        </PieChart>
+        </div>
+
+        <div style={{ marginBottom: "15px" }}>
+
+          <label>TCS.NS Quantity:</label>
+
+          <input
+            type="number"
+            value={portfolioInput["TCS.NS"]}
+            onChange={(e) =>
+              handleChange("TCS.NS", e.target.value)
+            }
+            style={inputStyle}
+          />
+
+        </div>
+
+        <button
+          onClick={analyzePortfolio}
+          style={buttonStyle}
+        >
+          Analyze Portfolio
+        </button>
 
       </div>
 
-      {/* Holdings Table */}
+      {/* Show Results */}
 
-      <h2 style={{
-        marginBottom: "20px"
-      }}>
-        Portfolio Holdings
-      </h2>
+      {portfolioData && (
 
-      <table style={{
-        width: "100%",
-        borderCollapse: "collapse",
-        backgroundColor: "white",
-        boxShadow: "0px 2px 8px rgba(0,0,0,0.1)"
-      }}>
+        <>
 
-        <thead>
+          {/* Dashboard Cards */}
 
-          <tr>
+          <div style={{
+            display: "flex",
+            gap: "20px",
+            marginBottom: "40px",
+            flexWrap: "wrap"
+          }}>
 
-            <th style={tableHeader}>
-              Symbol
-            </th>
+            <div style={cardStyle}>
+              <h3>Total Portfolio Value</h3>
+              <p style={cardText}>
+                ₹ {portfolioData.total_portfolio_value}
+              </p>
+            </div>
 
-            <th style={tableHeader}>
-              Quantity
-            </th>
+            <div style={cardStyle}>
+              <h3>Risk Score</h3>
+              <p style={cardText}>
+                {portfolioData.risk_score}
+              </p>
+            </div>
 
-            <th style={tableHeader}>
-              Latest Price
-            </th>
+            <div style={cardStyle}>
+              <h3>Diversification</h3>
+              <p style={cardText}>
+                {portfolioData.diversification}
+              </p>
+            </div>
 
-            <th style={tableHeader}>
-              Investment Value
-            </th>
+            <div style={cardStyle}>
+              <h3>Top Risk Stock</h3>
+              <p style={cardText}>
+                {portfolioData.top_risk_stock}
+              </p>
+            </div>
 
-            <th style={tableHeader}>
-              Allocation %
-            </th>
+          </div>
 
-          </tr>
+          {/* Pie Chart */}
 
-        </thead>
+          <div style={{
+            backgroundColor: "white",
+            padding: "20px",
+            borderRadius: "10px",
+            marginBottom: "40px",
+            width: "500px",
+            boxShadow: "0px 2px 8px rgba(0,0,0,0.1)"
+          }}>
 
-        <tbody>
+            <h2>Portfolio Allocation</h2>
 
-          {portfolioData.stocks.map((stock, index) => (
+            <PieChart width={450} height={320}>
 
-            <tr key={index}>
+              <Pie
+                data={portfolioData.stocks.map(stock => ({
+                  name: stock.symbol,
+                  value: stock.allocation_percentage
+                }))}
+                cx="50%"
+                cy="50%"
+                outerRadius={110}
+                dataKey="value"
+                label
+              >
 
-              <td style={tableCell}>
-                {stock.symbol}
-              </td>
+                {portfolioData.stocks.map((entry, index) => (
 
-              <td style={tableCell}>
-                {stock.quantity}
-              </td>
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                  />
 
-              <td style={tableCell}>
-                ₹ {stock.latest_price}
-              </td>
+                ))}
 
-              <td style={tableCell}>
-                ₹ {stock.investment_value}
-              </td>
+              </Pie>
 
-              <td style={tableCell}>
-                {stock.allocation_percentage}%
-              </td>
+              <Tooltip />
+              <Legend />
 
-            </tr>
+            </PieChart>
 
-          ))}
+          </div>
 
-        </tbody>
+        </>
 
-      </table>
+      )}
 
     </div>
   );
 }
 
-/* Card Styling */
+/* Styles */
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px",
+  marginTop: "5px"
+};
+
+const buttonStyle = {
+  backgroundColor: "#2563eb",
+  color: "white",
+  padding: "12px",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer",
+  width: "100%"
+};
 
 const cardStyle = {
   backgroundColor: "white",
@@ -239,22 +256,6 @@ const cardStyle = {
 const cardText = {
   fontSize: "24px",
   fontWeight: "bold"
-};
-
-/* Table Styling */
-
-const tableHeader = {
-  border: "1px solid #ddd",
-  padding: "14px",
-  backgroundColor: "#1f2937",
-  color: "white",
-  textAlign: "center"
-};
-
-const tableCell = {
-  border: "1px solid #ddd",
-  padding: "14px",
-  textAlign: "center"
 };
 
 export default App;

@@ -1,79 +1,37 @@
-import yfinance as yf
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from portfolio import get_stock_data, analyze_portfolio
 
-def get_stock_data(symbol):
+app = Flask(__name__)
 
-    stock = yf.Ticker(symbol)
+CORS(app)
 
-    data = stock.history(period="5d")
 
-    latest_close = data['Close'].iloc[-1]
+@app.route('/')
+def home():
 
     return {
-        "symbol": symbol,
-        "latest_price": round(latest_close, 2)
+        "message": "Portfolio Risk Analyzer Backend Running"
     }
 
 
-def analyze_portfolio(portfolio):
+@app.route('/stock/<symbol>')
+def stock(symbol):
 
-    total_value = 0
+    data = get_stock_data(symbol.upper())
 
-    stock_details = []
+    return jsonify(data)
 
-    # First calculate investment values
 
-    for symbol, quantity in portfolio.items():
+@app.route('/portfolio', methods=['POST'])
+def portfolio():
 
-        stock = yf.Ticker(symbol)
+    portfolio_data = request.json
 
-        data = stock.history(period="5d")
+    result = analyze_portfolio(portfolio_data)
 
-        latest_price = data['Close'].iloc[-1]
+    return jsonify(result)
 
-        investment_value = latest_price * quantity
 
-        total_value += investment_value
-
-        stock_details.append({
-            "symbol": symbol,
-            "quantity": quantity,
-            "latest_price": round(latest_price, 2),
-            "investment_value": round(investment_value, 2)
-        })
-
-    # Calculate allocation percentages
-
-    highest_allocation = 0
-    top_stock = ""
-
-    for stock in stock_details:
-
-        allocation = (stock["investment_value"] / total_value) * 100
-
-        stock["allocation_percentage"] = round(allocation, 2)
-
-        if allocation > highest_allocation:
-            highest_allocation = allocation
-            top_stock = stock["symbol"]
-
-    # Diversification logic
-
-    if highest_allocation > 50:
-        diversification = "Poor"
-        risk_score = 85
-
-    elif highest_allocation > 30:
-        diversification = "Moderate"
-        risk_score = 60
-
-    else:
-        diversification = "Good"
-        risk_score = 35
-
-    return {
-        "total_portfolio_value": round(total_value, 2),
-        "risk_score": risk_score,
-        "top_risk_stock": top_stock,
-        "diversification": diversification,
-        "stocks": stock_details
-    }
+if __name__ == '__main__':
+    app.run(debug=True)

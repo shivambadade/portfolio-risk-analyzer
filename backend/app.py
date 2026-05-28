@@ -1,4 +1,11 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from chatbot import get_financial_advice
+
 from flask import Flask, jsonify, request
+
 from flask_cors import CORS
 
 from portfolio import (
@@ -8,10 +15,8 @@ from portfolio import (
     generate_ai_insights
 )
 
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
 
 app = Flask(__name__)
 
@@ -19,8 +24,6 @@ CORS(app)
 
 PORT = os.getenv("PORT", 5000)
 
-
-# Home Route
 
 @app.route('/')
 def home():
@@ -30,8 +33,6 @@ def home():
     }
 
 
-# Latest Stock Price Route
-
 @app.route('/stock/<symbol>')
 def stock(symbol):
 
@@ -40,8 +41,6 @@ def stock(symbol):
     return jsonify(data)
 
 
-# Historical Stock Data Route
-
 @app.route('/history/<symbol>')
 def history(symbol):
 
@@ -49,8 +48,6 @@ def history(symbol):
 
     return jsonify(data)
 
-
-# Portfolio Analysis Route
 
 @app.route('/portfolio', methods=['POST'])
 def portfolio():
@@ -61,13 +58,6 @@ def portfolio():
 
     return jsonify(result)
 
-
-if __name__ == '__main__':
-
-    app.run(
-        debug=True,
-        port=int(PORT)
-    )
 
 @app.route('/ai-insights', methods=['POST'])
 def ai_insights():
@@ -85,3 +75,34 @@ def ai_insights():
     return jsonify({
         "insights": insights
     })
+
+
+@app.route('/chatbot', methods=['POST'])
+def chatbot():
+
+    data = request.json
+
+    question = data.get("question")
+
+    portfolio_data = data.get("portfolio")
+
+    portfolio_analysis = analyze_portfolio(
+        portfolio_data
+    )
+
+    response = get_financial_advice(
+        question,
+        portfolio_analysis
+    )
+
+    return jsonify({
+        "response": response
+    })
+
+
+if __name__ == '__main__':
+
+    app.run(
+        debug=True,
+        port=int(PORT)
+    )

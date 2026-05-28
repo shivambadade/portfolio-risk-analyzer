@@ -29,6 +29,10 @@ function App() {
 
   const [insights, setInsights] = useState([]);
 
+  const [question, setQuestion] = useState("");
+
+  const [chatResponse, setChatResponse] = useState("");
+
   const [loading, setLoading] = useState(false);
 
   const COLORS = [
@@ -156,7 +160,43 @@ function App() {
     });
   };
 
+  const askChatbot = () => {
 
+  const formattedPortfolio = {};
+
+  portfolio.forEach(stock => {
+
+    if (
+      stock.symbol &&
+      stock.quantity
+    ) {
+
+      formattedPortfolio[
+        stock.symbol.toUpperCase()
+      ] = Number(stock.quantity);
+    }
+  });
+
+  axios.post(
+    "http://127.0.0.1:5000/chatbot",
+    {
+      question,
+      portfolio: formattedPortfolio
+    }
+  )
+
+  .then(response => {
+
+    setChatResponse(
+      response.data.response
+    );
+  })
+
+  .catch(error => {
+
+    console.log(error);
+  });
+};
   return (
 
     <div className="min-h-screen bg-gray-950 text-white p-8">
@@ -572,6 +612,52 @@ function App() {
               </div>
 
             </div>
+
+            <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+
+  <h2 className="text-2xl font-semibold mb-6 text-green-400">
+
+    AI Financial Assistant
+
+  </h2>
+
+  <textarea
+
+    placeholder="Ask about your portfolio..."
+
+    value={question}
+
+    onChange={(e) =>
+      setQuestion(e.target.value)
+    }
+
+    className="w-full p-4 rounded-lg bg-gray-800 border border-gray-700 mb-4"
+  />
+
+  <button
+
+    onClick={askChatbot}
+
+    className="bg-green-500 hover:bg-green-600 px-5 py-3 rounded-lg font-semibold"
+  >
+
+    Ask AI
+
+  </button>
+
+  {
+
+    chatResponse && (
+
+      <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-gray-700 whitespace-pre-line">
+
+        {chatResponse}
+
+      </div>
+    )
+  }
+
+</div>
 
           </div>
         )

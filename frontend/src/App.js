@@ -1,3 +1,4 @@
+import Papa from "papaparse";
 import { useState } from "react";
 
 import axios from "axios";
@@ -60,6 +61,31 @@ function App() {
       { symbol: "", quantity: "" }
     ]);
   };
+
+  const handleCSVUpload = (event) => {
+
+  const file = event.target.files[0];
+
+  Papa.parse(file, {
+
+    header: true,
+
+    skipEmptyLines: true,
+
+    complete: function(results) {
+
+      const parsedPortfolio = results.data.map(item => ({
+
+        symbol: item.symbol,
+
+        quantity: item.quantity
+
+      }));
+
+      setPortfolio(parsedPortfolio);
+    }
+  });
+};
 
 
   const analyzePortfolio = () => {
@@ -163,6 +189,17 @@ function App() {
           Enter Portfolio
 
         </h2>
+
+      <div className="mb-6">
+
+  <input
+    type="file"
+    accept=".csv"
+    onChange={handleCSVUpload}
+    className="block w-full text-sm text-gray-400"
+  />
+
+</div>
 
         {
 

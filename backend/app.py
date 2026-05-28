@@ -4,7 +4,8 @@ from flask_cors import CORS
 from portfolio import (
     get_stock_data,
     analyze_portfolio,
-    get_stock_history
+    get_stock_history,
+    generate_ai_insights
 )
 
 from dotenv import load_dotenv
@@ -67,3 +68,20 @@ if __name__ == '__main__':
         debug=True,
         port=int(PORT)
     )
+
+@app.route('/ai-insights', methods=['POST'])
+def ai_insights():
+
+    portfolio_data = request.json
+
+    result = analyze_portfolio(
+        portfolio_data
+    )
+
+    insights = generate_ai_insights(
+        result
+    )
+
+    return jsonify({
+        "insights": insights
+    })

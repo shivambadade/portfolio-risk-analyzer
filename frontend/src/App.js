@@ -26,6 +26,8 @@ function App() {
 
   const [historyData, setHistoryData] = useState([]);
 
+  const [insights, setInsights] = useState([]);
+
   const [loading, setLoading] = useState(false);
 
   const COLORS = [
@@ -88,6 +90,18 @@ function App() {
 
       setPortfolioData(response.data);
 
+      axios.post(
+        "http://127.0.0.1:5000/ai-insights",
+        formattedPortfolio
+      )
+
+      .then(aiResponse => {
+
+        setInsights(
+          aiResponse.data.insights
+        );
+      });
+
       const firstStock =
         response.data.stocks[0]?.symbol;
 
@@ -147,6 +161,7 @@ function App() {
         <h2 className="text-2xl font-semibold mb-6">
 
           Enter Portfolio
+
         </h2>
 
         {
@@ -483,6 +498,39 @@ function App() {
                   </tbody>
 
                 </table>
+
+              </div>
+
+            </div>
+
+
+            {/* AI Insights */}
+
+            <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+
+              <h2 className="text-2xl font-semibold mb-6 text-blue-400">
+
+                AI Financial Insights
+
+              </h2>
+
+              <div className="space-y-4">
+
+                {
+                  insights.map(
+                    (insight, index) => (
+
+                      <div
+                        key={index}
+                        className="bg-gray-800 p-4 rounded-lg border border-gray-700"
+                      >
+
+                        {insight}
+
+                      </div>
+                    )
+                  )
+                }
 
               </div>
 

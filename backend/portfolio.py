@@ -198,3 +198,61 @@ def analyze_portfolio(portfolio):
 
         "stocks": portfolio_details
     }
+
+def generate_ai_insights(portfolio_result):
+
+    insights = []
+
+    # Risk analysis
+
+    if portfolio_result["risk_score"] > 30:
+
+        insights.append(
+
+            "Your portfolio has high volatility risk."
+        )
+
+    else:
+
+        insights.append(
+
+            "Your portfolio risk is relatively balanced."
+        )
+
+    # Diversification analysis
+
+    if (
+        portfolio_result["diversification"]
+        == "Poor"
+    ):
+
+        insights.append(
+
+            "Your portfolio is highly concentrated in a few stocks."
+        )
+
+    elif (
+        portfolio_result["diversification"]
+        == "Moderate"
+    ):
+
+        insights.append(
+
+            "Your portfolio has moderate diversification."
+        )
+
+    else:
+
+        insights.append(
+
+            "Your portfolio is well diversified."
+        )
+
+    # Top risk stock
+
+    insights.append(
+
+        f"Highest portfolio exposure is in {portfolio_result['top_risk_stock']}."
+    )
+
+    return insights

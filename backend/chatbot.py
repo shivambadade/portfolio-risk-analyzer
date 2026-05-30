@@ -1,46 +1,72 @@
-from openai import OpenAI
-
-import os
-
-
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
-
-
 def get_financial_advice(
     question,
     portfolio_analysis
 ):
 
-    prompt = f"""
-    You are an AI financial advisor.
+    question = question.lower()
 
-    Portfolio Analysis:
-    {portfolio_analysis}
-
-    User Question:
-    {question}
-
-    Give concise and professional financial advice.
-    """
-
-    response = client.chat.completions.create(
-
-        model="gpt-3.5-turbo",
-
-        messages=[
-
-            {
-                "role": "system",
-                "content": "You are a professional AI financial advisor."
-            },
-
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
+    risk_score = portfolio_analysis.get(
+        "risk_score",
+        0
     )
 
-    return response.choices[0].message.content
+    diversification = portfolio_analysis.get(
+        "diversification",
+        "Unknown"
+    )
+
+    top_risk_stock = portfolio_analysis.get(
+        "top_risk_stock",
+        "Unknown"
+    )
+
+    total_value = portfolio_analysis.get(
+        "total_portfolio_value",
+        0
+    )
+
+    if "diversified" in question:
+
+        return (
+            f"Your portfolio diversification is "
+            f"{diversification}. "
+            f"Consider adding stocks from different sectors "
+            f"to reduce concentration risk."
+        )
+
+    elif "risk" in question:
+
+        return (
+            f"Portfolio Risk Score: {risk_score}. "
+            f"The riskiest stock currently appears to be "
+            f"{top_risk_stock}."
+        )
+
+    elif "value" in question:
+
+        return (
+            f"Your portfolio value is "
+            f"₹{total_value:.2f}."
+        )
+
+    elif "buy" in question:
+
+        return (
+            "Consider adding stocks from sectors "
+            "that are currently underrepresented "
+            "in your portfolio."
+        )
+
+    elif "sell" in question:
+
+        return (
+            f"You may want to review "
+            f"{top_risk_stock} due to its higher volatility."
+        )
+
+    else:
+
+        return (
+            "Your portfolio has been analyzed successfully. "
+            "Ask about risk, diversification, value, buy, or sell suggestions."
+        )

@@ -21,6 +21,16 @@ import {
 
 function App() {
 
+  const [comparisonData, setComparisonData] = useState(null);
+
+  const [portfolioA, setPortfolioA] = useState({
+    AAPL: 10
+  });
+
+  const [portfolioB, setPortfolioB] = useState({
+    MSFT: 10
+  });
+
   const [portfolio, setPortfolio] = useState([
     { symbol: "", quantity: "" }
   ]);
@@ -220,6 +230,31 @@ function App() {
     console.log(error);
   });
 };
+
+  const comparePortfolios = () => {
+
+    axios.post(
+      "http://127.0.0.1:5000/compare-portfolios",
+      {
+        portfolioA,
+        portfolioB
+      }
+    )
+
+    .then(response => {
+
+      setComparisonData(
+        response.data
+      );
+
+    })
+
+    .catch(error => {
+
+      console.log(error);
+
+    });
+  };
 
   const downloadReport = () => {
 
@@ -607,77 +642,122 @@ function App() {
 
         </div>
 
-        <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+        {/* Portfolio Comparison */}
 
-          <h2 className="text-2xl font-semibold mb-6 text-blue-400">
-            AI Financial Insights
-          </h2>
+<div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
 
-          {insights.map((insight, index) => (
+  <h2 className="text-2xl font-semibold mb-6 text-purple-400">
 
-            <div
-              key={index}
-              className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-3"
-            >
-              {insight}
-            </div>
+    Portfolio Comparison
 
-          ))}
+  </h2>
 
-        </div>
+  <button
+    onClick={comparePortfolios}
+    className="bg-purple-600 hover:bg-purple-700 px-5 py-3 rounded-lg font-semibold"
+  >
+    Compare Sample Portfolios
+  </button>
 
-        <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
-          <div className="mb-8">
+</div>
 
-          <button
-            onClick={downloadReport}
-            className="bg-purple-600 hover:bg-purple-700 px-5 py-3 rounded-lg font-semibold"
-          >
+{comparisonData && (
 
-            Download PDF Report
+  <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-6">
 
-          </button>
+    <table className="w-full text-left">
 
-        </div>
-          <h2 className="text-2xl font-semibold mb-6 text-yellow-400">
-            Portfolio Recommendations
-          </h2>
+      <thead>
 
-          {recommendations.map((item, index) => (
+        <tr>
 
-            <div
-              key={index}
-              className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-3"
-            >
-              {item}
-            </div>
+          <th className="p-3">Metric</th>
+          <th className="p-3">Portfolio A</th>
+          <th className="p-3">Portfolio B</th>
 
-          ))}
+        </tr>
 
-        </div>
+      </thead>
 
-        <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+      <tbody>
 
-          <h2 className="text-2xl font-semibold mb-6 text-green-400">
-            AI Financial Assistant
-          </h2>
+        <tr>
 
-          <textarea
-            placeholder="Ask about your portfolio..."
-            value={question}
-            onChange={(e) =>
-              setQuestion(e.target.value)
-            }
-            className="w-full p-4 rounded-lg bg-gray-800 border border-gray-700 mb-4"
-          />
+          <td className="p-3">Risk Score</td>
 
-          <button
-            onClick={askChatbot}
-            className="bg-green-500 hover:bg-green-600 px-5 py-3 rounded-lg font-semibold"
-          >
-            Ask AI
-          </button>
+          <td className="p-3">
+            {comparisonData.portfolioA.risk_score}
+          </td>
 
+          <td className="p-3">
+            {comparisonData.portfolioB.risk_score}
+          </td>
+
+        </tr>
+
+        <tr>
+
+          <td className="p-3">Health Score</td>
+
+          <td className="p-3">
+            {comparisonData.portfolioA.health_score}
+          </td>
+
+          <td className="p-3">
+            {comparisonData.portfolioB.health_score}
+          </td>
+
+        </tr>
+
+        <tr>
+
+          <td className="p-3">Diversification</td>
+
+          <td className="p-3">
+            {comparisonData.portfolioA.diversification}
+          </td>
+
+          <td className="p-3">
+            {comparisonData.portfolioB.diversification}
+          </td>
+
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+)}
+
+{/* AI Assistant */}
+
+<div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+
+  <h2 className="text-2xl font-semibold mb-6 text-green-400">
+
+    AI Financial Assistant
+
+  </h2>
+
+  <textarea
+    placeholder="Ask about your portfolio..."
+    value={question}
+    onChange={(e) =>
+      setQuestion(e.target.value)
+    }
+    className="w-full p-4 rounded-lg bg-gray-800 border border-gray-700 mb-4"
+  />
+
+  <button
+    onClick={askChatbot}
+    className="bg-green-500 hover:bg-green-600 px-5 py-3 rounded-lg font-semibold"
+  >
+
+    Ask AI
+
+  </button>
           {chatResponse && (
 
             <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-gray-700">

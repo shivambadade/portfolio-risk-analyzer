@@ -117,6 +117,31 @@ def recommendations():
         "recommendations": recommendations
     })
 
+@app.route('/compare-portfolios', methods=['POST'])
+def compare_portfolios():
+
+    data = request.json
+
+    portfolio_a = data.get("portfolioA")
+
+    portfolio_b = data.get("portfolioB")
+
+    result_a = analyze_portfolio(
+        portfolio_a
+    )
+
+    result_b = analyze_portfolio(
+        portfolio_b
+    )
+
+    return jsonify({
+
+        "portfolioA": result_a,
+
+        "portfolioB": result_b
+
+    })
+
 if __name__ == '__main__':
 
     app.run(

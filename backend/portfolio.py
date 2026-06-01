@@ -169,6 +169,7 @@ def analyze_portfolio(portfolio):
         2
     )
 
+
     # Diversification logic
 
     if highest_allocation > 50:
@@ -183,6 +184,7 @@ def analyze_portfolio(portfolio):
 
         diversification = "Good"
 
+    # Portfolio Health Score
     health_score = 100
 
     if risk_score > 40:
@@ -194,8 +196,10 @@ def analyze_portfolio(portfolio):
     elif diversification == "Moderate":
         health_score -= 10
 
-    health_score = max(0, health_score)
-
+    health_score = max(
+        0,
+        min(100, health_score)
+    )
     return {
 
     "total_portfolio_value": round(

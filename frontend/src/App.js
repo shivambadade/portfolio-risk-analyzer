@@ -2,6 +2,8 @@ import Papa from "papaparse";
 import { useState } from "react";
 
 import axios from "axios";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import {
   PieChart,
@@ -217,6 +219,118 @@ function App() {
 
     console.log(error);
   });
+};
+
+  const downloadReport = () => {
+
+  if (!portfolioData) return;
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+
+  doc.text(
+    "Portfolio Risk Analysis Report",
+    14,
+    20
+  );
+
+  doc.setFontSize(12);
+
+  doc.text(
+    `Portfolio Value: ₹${portfolioData.total_portfolio_value}`,
+    14,
+    35
+  );
+
+  doc.text(
+    `Risk Score: ${portfolioData.risk_score}`,
+    14,
+    45
+  );
+
+  doc.text(
+    `Diversification: ${portfolioData.diversification}`,
+    14,
+    55
+  );
+
+  doc.text(
+    `Health Score: ${portfolioData.health_score}/100`,
+    14,
+    65
+  );
+
+  autoTable(doc, {
+
+    startY: 80,
+
+    head: [[
+      "Symbol",
+      "Quantity",
+      "Price",
+      "Volatility",
+      "Allocation %"
+    ]],
+
+    body: portfolioData.stocks.map(
+      stock => [
+
+        stock.symbol,
+        stock.quantity,
+        stock.latest_price,
+        stock.volatility,
+        stock.allocation_percentage
+      ]
+    )
+  });
+
+  let currentY =
+    doc.lastAutoTable.finalY + 15;
+
+  doc.text(
+    "AI Insights",
+    14,
+    currentY
+  );
+
+  currentY += 10;
+
+  insights.forEach(insight => {
+
+    doc.text(
+      `• ${insight}`,
+      14,
+      currentY
+    );
+
+    currentY += 8;
+  });
+
+  currentY += 10;
+
+  doc.text(
+    "Recommendations",
+    14,
+    currentY
+  );
+
+  currentY += 10;
+
+  recommendations.forEach(item => {
+
+    doc.text(
+      `• ${item}`,
+      14,
+      currentY
+    );
+
+    currentY += 8;
+  });
+
+  doc.save(
+    "Portfolio_Report.pdf"
+  );
 };
   return (
   <div className="min-h-screen bg-gray-950 text-white p-8">
@@ -513,7 +627,18 @@ function App() {
         </div>
 
         <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+          <div className="mb-8">
 
+          <button
+            onClick={downloadReport}
+            className="bg-purple-600 hover:bg-purple-700 px-5 py-3 rounded-lg font-semibold"
+          >
+
+            Download PDF Report
+
+          </button>
+
+        </div>
           <h2 className="text-2xl font-semibold mb-6 text-yellow-400">
             Portfolio Recommendations
           </h2>

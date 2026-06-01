@@ -12,7 +12,8 @@ from portfolio import (
     get_stock_data,
     analyze_portfolio,
     get_stock_history,
-    generate_ai_insights
+    generate_ai_insights,
+    generate_recommendations
 )
 
 import os
@@ -99,6 +100,22 @@ def chatbot():
         "response": response
     })
 
+@app.route('/recommendations', methods=['POST'])
+def recommendations():
+
+    portfolio_data = request.json
+
+    result = analyze_portfolio(
+        portfolio_data
+    )
+
+    recommendations = generate_recommendations(
+        result
+    )
+
+    return jsonify({
+        "recommendations": recommendations
+    })
 
 if __name__ == '__main__':
 

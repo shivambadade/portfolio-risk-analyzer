@@ -183,21 +183,62 @@ def analyze_portfolio(portfolio):
 
         diversification = "Good"
 
+    health_score = 100
+
+    if risk_score > 40:
+        health_score -= 30
+
+    if diversification == "Poor":
+        health_score -= 30
+
+    elif diversification == "Moderate":
+        health_score -= 10
+
+    health_score = max(0, health_score)
+
     return {
 
-        "total_portfolio_value": round(
-            total_value,
-            2
-        ),
+    "total_portfolio_value": round(
+        total_value,
+        2
+    ),
 
-        "risk_score": risk_score,
+    "risk_score": risk_score,
 
-        "top_risk_stock": top_risk_stock,
+    "top_risk_stock": top_risk_stock,
 
-        "diversification": diversification,
+    "diversification": diversification,
 
-        "stocks": portfolio_details
-    }
+    "health_score": health_score,
+
+    "stocks": portfolio_details
+}
+
+        # Portfolio Health Score
+
+    health_score = 100
+
+    # Penalize high risk
+
+    if risk_score > 40:
+
+        health_score -= 30
+
+    elif risk_score > 20:
+
+        health_score -= 15
+
+    # Penalize concentration
+
+    if diversification == "Poor":
+
+        health_score -= 20
+
+    elif diversification == "Moderate":
+
+        health_score -= 10
+
+    health_score = max(0, health_score)
 
 def generate_ai_insights(portfolio_result):
 
@@ -256,3 +297,31 @@ def generate_ai_insights(portfolio_result):
     )
 
     return insights
+
+def generate_recommendations(portfolio_result):
+
+    recommendations = []
+
+    if portfolio_result["risk_score"] > 40:
+
+        recommendations.append(
+            "Consider reducing exposure to highly volatile stocks."
+        )
+
+    if portfolio_result["diversification"] == "Poor":
+
+        recommendations.append(
+            "Your portfolio is concentrated. Add stocks from different sectors."
+        )
+
+    elif portfolio_result["diversification"] == "Moderate":
+
+        recommendations.append(
+            "Consider increasing diversification for better risk management."
+        )
+
+    recommendations.append(
+        f"Review your allocation in {portfolio_result['top_risk_stock']}."
+    )
+
+    return recommendations

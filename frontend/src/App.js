@@ -642,6 +642,45 @@ function App() {
 
         </div>
 
+
+        {/* PDF Download */}
+
+<div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+
+  <button
+    onClick={downloadReport}
+    className="bg-purple-600 hover:bg-purple-700 px-5 py-3 rounded-lg font-semibold"
+  >
+    Download PDF Report
+  </button>
+
+</div>
+
+{/* Recommendations */}
+
+<div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+
+  <h2 className="text-2xl font-semibold mb-6 text-yellow-400">
+
+    Portfolio Recommendations
+
+  </h2>
+
+  {recommendations.map((item, index) => (
+
+    <div
+      key={index}
+      className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-3"
+    >
+
+      {item}
+
+    </div>
+
+  ))}
+
+</div>
+
         {/* Portfolio Comparison */}
 
 <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">

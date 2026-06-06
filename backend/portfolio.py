@@ -1,331 +1,318 @@
 import yfinance as yf
 
 
-# Fetch latest stock price
-
 def get_stock_data(symbol):
-
     try:
-
         stock = yf.Ticker(symbol)
-
         data = stock.history(period="1d")
 
         if data.empty:
-
             return None
 
-        latest_price = round(
-            data['Close'].iloc[-1],
-            2
-        )
+        latest_price = round(data["Close"].iloc[-1], 2)
 
         return {
-
             "symbol": symbol,
-
-            "latest_price": latest_price
+            "latest_price": latest_price,
         }
 
-    except:
-
+    except Exception:
         return None
 
 
-# Historical stock data
-
 def get_stock_history(symbol):
-
     try:
-
         stock = yf.Ticker(symbol)
-
         data = stock.history(period="7d")
-
         history = []
 
         for index, row in data.iterrows():
-
             history.append({
-
                 "date": index.strftime("%Y-%m-%d"),
-
-                "close": round(
-                    row["Close"],
-                    2
-                )
+                "close": round(row["Close"], 2),
             })
 
         return history
 
-    except:
-
+    except Exception:
         return []
 
 
-# Volatility calculation
-
 def calculate_volatility(symbol):
-
     try:
-
         stock = yf.Ticker(symbol)
-
         data = stock.history(period="1mo")
 
-        returns = data['Close'].pct_change()
+        if data.empty:
+            return 0
 
+        returns = data["Close"].pct_change()
         volatility = returns.std()
 
-        return round(
-            volatility * 100,
-            2
-        )
+        return round(volatility * 100, 2)
 
-    except:
-
+    except Exception:
         return 0
 
 
-# Portfolio analysis
+def classify_risk(volatility):
+    if volatility >= 3:
+        return "High Risk"
 
-def analyze_portfolio(portfolio):
+    if volatility >= 1.5:
+        return "Moderate Risk"
 
-    portfolio_details = []
+    return "Low Risk"
 
-    total_value = 0
 
-    for symbol, quantity in portfolio.items():
+def get_mutual_fund_data(fund):
+    try:
+        ticker = yf.Ticker(fund)
+        data = ticker.history(period="1d")
 
-        stock_data = get_stock_data(symbol)
+        if data.empty:
+            return None
 
-        if stock_data is None:
+        nav = round(data["Close"].iloc[-1], 2)
+        info = ticker.info or {}
 
+        return {
+            "fund": fund,
+            "fund_name": info.get("longName") or info.get("shortName") or fund,
+            "nav": nav,
+        }
+
+    except Exception:
+        return None
+
+
+def get_mutual_fund_history(fund):
+    try:
+        ticker = yf.Ticker(fund)
+        data = ticker.history(period="1mo")
+        history = []
+
+        for index, row in data.iterrows():
+            history.append({
+                "date": index.strftime("%Y-%m-%d"),
+                "nav": round(row["Close"], 2),
+            })
+
+        return history
+
+    except Exception:
+        return []
+
+
+def normalize_portfolio(portfolio):
+    if isinstance(portfolio, dict):
+        return [
+            {
+                "asset_type": "Stock",
+                "symbol": symbol,
+                "quantity": quantity,
+            }
+            for symbol, quantity in portfolio.items()
+        ]
+
+    if not isinstance(portfolio, list):
+        return []
+
+    normalized = []
+
+    for item in portfolio:
+        asset_type = item.get("asset_type") or item.get("assetType") or "Stock"
+        asset_type = "Mutual Fund" if asset_type.lower() == "mutual fund" else "Stock"
+
+        symbol = (item.get("symbol") or item.get("fund") or item.get("fund_name") or "").strip()
+        quantity = item.get("quantity")
+        units = item.get("units")
+
+        if asset_type == "Mutual Fund":
+            quantity = units if units not in (None, "") else quantity
+
+        try:
+            numeric_quantity = float(quantity)
+        except (TypeError, ValueError):
+            numeric_quantity = 0
+
+        if not symbol or numeric_quantity <= 0:
             continue
 
-        volatility = calculate_volatility(symbol)
-
-        investment_value = (
-            stock_data["latest_price"] * quantity
-        )
-
-        portfolio_details.append({
-
-            "symbol": symbol,
-
-            "quantity": quantity,
-
-            "latest_price": stock_data["latest_price"],
-
-            "volatility": volatility,
-
-            "investment_value": round(
-                investment_value,
-                2
-            )
+        normalized.append({
+            "asset_type": asset_type,
+            "symbol": symbol.upper() if asset_type == "Stock" else symbol,
+            "quantity": numeric_quantity,
+            "fund_name": item.get("fund_name") or item.get("fundName") or symbol,
         })
 
+    return normalized
+
+
+def analyze_portfolio(portfolio):
+    holdings = normalize_portfolio(portfolio)
+    portfolio_details = []
+    stock_details = []
+    mutual_fund_details = []
+    total_value = 0
+
+    for holding in holdings:
+        if holding["asset_type"] == "Mutual Fund":
+            fund_data = get_mutual_fund_data(holding["symbol"])
+
+            if fund_data is None:
+                continue
+
+            volatility = calculate_volatility(holding["symbol"])
+            current_value = fund_data["nav"] * holding["quantity"]
+            detail = {
+                "asset_type": "Mutual Fund",
+                "symbol": holding["symbol"],
+                "fund_name": fund_data["fund_name"],
+                "nav": fund_data["nav"],
+                "units": holding["quantity"],
+                "quantity": holding["quantity"],
+                "current_value": round(current_value, 2),
+                "investment_value": round(current_value, 2),
+                "volatility": volatility,
+                "risk_classification": classify_risk(volatility),
+            }
+
+            mutual_fund_details.append(detail)
+            portfolio_details.append(detail)
+            total_value += current_value
+            continue
+
+        stock_data = get_stock_data(holding["symbol"])
+
+        if stock_data is None:
+            continue
+
+        volatility = calculate_volatility(holding["symbol"])
+        investment_value = stock_data["latest_price"] * holding["quantity"]
+        detail = {
+            "asset_type": "Stock",
+            "symbol": holding["symbol"],
+            "quantity": holding["quantity"],
+            "latest_price": stock_data["latest_price"],
+            "volatility": volatility,
+            "investment_value": round(investment_value, 2),
+            "current_value": round(investment_value, 2),
+        }
+
+        stock_details.append(detail)
+        portfolio_details.append(detail)
         total_value += investment_value
 
     if total_value == 0:
-
         return {
-            "error": "No valid stock symbols found."
+            "error": "No valid stock symbols or mutual funds found.",
         }
 
     highest_allocation = 0
+    top_risk_asset = ""
 
-    top_risk_stock = ""
-
-    for stock in portfolio_details:
-
-        allocation = (
-            stock["investment_value"] / total_value
-        ) * 100
-
-        stock["allocation_percentage"] = round(
-            allocation,
-            2
-        )
+    for holding in portfolio_details:
+        allocation = (holding["investment_value"] / total_value) * 100
+        holding["allocation_percentage"] = round(allocation, 2)
 
         if allocation > highest_allocation:
-
             highest_allocation = allocation
+            top_risk_asset = holding["fund_name"] if holding["asset_type"] == "Mutual Fund" else holding["symbol"]
 
-            top_risk_stock = stock["symbol"]
-
-    # Average volatility
-
-    average_volatility = sum(
-
-        stock["volatility"]
-
-        for stock in portfolio_details
-
-    ) / len(portfolio_details)
-
-    risk_score = round(
-        average_volatility * 10,
-        2
-    )
-
-
-    # Diversification logic
+    average_volatility = sum(holding["volatility"] for holding in portfolio_details) / len(portfolio_details)
+    risk_score = round(average_volatility * 10, 2)
 
     if highest_allocation > 50:
-
         diversification = "Poor"
-
     elif highest_allocation > 30:
-
         diversification = "Moderate"
-
     else:
-
         diversification = "Good"
 
-    # Portfolio Health Score
     health_score = 100
 
     if risk_score > 40:
         health_score -= 30
-
-    if diversification == "Poor":
-        health_score -= 30
-
-    elif diversification == "Moderate":
-        health_score -= 10
-
-    health_score = max(
-        0,
-        min(100, health_score)
-    )
-    return {
-
-    "total_portfolio_value": round(
-        total_value,
-        2
-    ),
-
-    "risk_score": risk_score,
-
-    "top_risk_stock": top_risk_stock,
-
-    "diversification": diversification,
-
-    "health_score": health_score,
-
-    "stocks": portfolio_details
-}
-
-        # Portfolio Health Score
-
-    health_score = 100
-
-    # Penalize high risk
-
-    if risk_score > 40:
-
-        health_score -= 30
-
     elif risk_score > 20:
-
         health_score -= 15
 
-    # Penalize concentration
-
     if diversification == "Poor":
-
-        health_score -= 20
-
+        health_score -= 30
     elif diversification == "Moderate":
-
         health_score -= 10
 
-    health_score = max(0, health_score)
+    if any(item.get("risk_classification") == "High Risk" for item in mutual_fund_details):
+        health_score -= 10
+
+    health_score = max(0, min(100, health_score))
+
+    return {
+        "total_portfolio_value": round(total_value, 2),
+        "risk_score": risk_score,
+        "top_risk_stock": top_risk_asset,
+        "top_risk_asset": top_risk_asset,
+        "diversification": diversification,
+        "health_score": health_score,
+        "stocks": stock_details,
+        "mutual_funds": mutual_fund_details,
+        "assets": portfolio_details,
+    }
+
 
 def generate_ai_insights(portfolio_result):
+    if "error" in portfolio_result:
+        return [portfolio_result["error"]]
 
     insights = []
 
-    # Risk analysis
-
     if portfolio_result["risk_score"] > 30:
-
-        insights.append(
-
-            "Your portfolio has high volatility risk."
-        )
-
+        insights.append("Your portfolio has high volatility risk.")
     else:
+        insights.append("Your portfolio risk is relatively balanced.")
 
-        insights.append(
-
-            "Your portfolio risk is relatively balanced."
-        )
-
-    # Diversification analysis
-
-    if (
-        portfolio_result["diversification"]
-        == "Poor"
-    ):
-
-        insights.append(
-
-            "Your portfolio is highly concentrated in a few stocks."
-        )
-
-    elif (
-        portfolio_result["diversification"]
-        == "Moderate"
-    ):
-
-        insights.append(
-
-            "Your portfolio has moderate diversification."
-        )
-
+    if portfolio_result["diversification"] == "Poor":
+        insights.append("Your portfolio is highly concentrated in a few assets.")
+    elif portfolio_result["diversification"] == "Moderate":
+        insights.append("Your portfolio has moderate diversification.")
     else:
+        insights.append("Your portfolio is well diversified.")
 
-        insights.append(
+    if portfolio_result.get("mutual_funds"):
+        high_risk_funds = [
+            fund["fund_name"]
+            for fund in portfolio_result["mutual_funds"]
+            if fund["risk_classification"] == "High Risk"
+        ]
 
-            "Your portfolio is well diversified."
-        )
+        if high_risk_funds:
+            insights.append("Some mutual funds carry high risk: " + ", ".join(high_risk_funds) + ".")
+        else:
+            insights.append("Your mutual fund exposure is not classified as high risk.")
 
-    # Top risk stock
-
-    insights.append(
-
-        f"Highest portfolio exposure is in {portfolio_result['top_risk_stock']}."
-    )
+    insights.append(f"Highest portfolio exposure is in {portfolio_result['top_risk_asset']}.")
 
     return insights
 
+
 def generate_recommendations(portfolio_result):
+    if "error" in portfolio_result:
+        return [portfolio_result["error"]]
 
     recommendations = []
 
     if portfolio_result["risk_score"] > 40:
-
-        recommendations.append(
-            "Consider reducing exposure to highly volatile stocks."
-        )
+        recommendations.append("Consider reducing exposure to highly volatile assets.")
 
     if portfolio_result["diversification"] == "Poor":
-
-        recommendations.append(
-            "Your portfolio is concentrated. Add stocks from different sectors."
-        )
-
+        recommendations.append("Your portfolio is concentrated. Add assets from different sectors or fund categories.")
     elif portfolio_result["diversification"] == "Moderate":
+        recommendations.append("Consider increasing diversification for better risk management.")
 
-        recommendations.append(
-            "Consider increasing diversification for better risk management."
-        )
+    for fund in portfolio_result.get("mutual_funds", []):
+        if fund["risk_classification"] == "High Risk":
+            recommendations.append(f"Review the allocation to {fund['fund_name']} because it is classified as High Risk.")
 
-    recommendations.append(
-        f"Review your allocation in {portfolio_result['top_risk_stock']}."
-    )
+    recommendations.append(f"Review your allocation in {portfolio_result['top_risk_asset']}.")
 
     return recommendations

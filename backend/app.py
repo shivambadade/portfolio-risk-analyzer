@@ -1,4 +1,6 @@
 from dotenv import load_dotenv
+from forex import get_forex_data
+from crypto import get_crypto_data
 
 load_dotenv()
 
@@ -229,6 +231,19 @@ def compare_portfolios():
         "portfolioB": result_b,
     })
 
+@app.route("/forex/<pair>")
+def forex(pair):
+
+    return jsonify(
+        get_forex_data(pair)
+    )
+
+@app.route("/crypto/<symbol>")
+def crypto(symbol):
+
+    return jsonify(
+        get_crypto_data(symbol)
+    )
 
 if __name__ == "__main__":
     app.run(

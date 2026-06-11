@@ -46,8 +46,34 @@ def _get_next_portfolio_id():
 
 
 def _normalize_holding(holding):
+    allowed_types = [
+        "Stock",
+        "Mutual Fund",
+        "Forex",
+        "Crypto",
+        "F&O",
+    ]
+
     asset_type = holding.get("asset_type") or holding.get("assetType") or "Stock"
-    asset_type = "Mutual Fund" if asset_type.lower() == "mutual fund" else "Stock"
+
+    if isinstance(asset_type, str):
+        asset_type = asset_type.strip()
+    else:
+        asset_type = "Stock"
+
+    if asset_type.lower() == "mutual fund":
+        asset_type = "Mutual Fund"
+    elif asset_type.lower() == "forex":
+        asset_type = "Forex"
+    elif asset_type.lower() == "crypto":
+        asset_type = "Crypto"
+    elif asset_type.lower() in ("f&o", "fno", "futures and options"):
+        asset_type = "F&O"
+    elif asset_type.lower() == "stock":
+        asset_type = "Stock"
+
+    if asset_type not in allowed_types:
+        asset_type = "Stock"
 
     symbol = (holding.get("symbol") or holding.get("fund") or holding.get("fund_name") or "").strip()
     quantity = holding.get("quantity")

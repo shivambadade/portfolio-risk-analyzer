@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from forex import get_forex_data
 from crypto import get_crypto_data
+from fno import get_option_chain
 
 load_dotenv()
 
@@ -243,6 +244,15 @@ def crypto(symbol):
 
     return jsonify(
         get_crypto_data(symbol)
+    )
+
+@app.route("/options/<symbol>")
+def options(symbol):
+
+    return jsonify(
+        get_option_chain(
+            symbol.upper()
+        )
     )
 
 if __name__ == "__main__":

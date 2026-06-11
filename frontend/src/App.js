@@ -158,15 +158,15 @@ function App() {
 
     axios.post(
       `${API_BASE_URL}/portfolio`,
-      formattedPortfolio
+      { holdings: formattedPortfolio }
     )
       .then(response => {
         setPortfolioData(response.data);
         fetchHistory(response.data);
 
         return Promise.all([
-          axios.post(`${API_BASE_URL}/ai-insights`, formattedPortfolio),
-          axios.post(`${API_BASE_URL}/recommendations`, formattedPortfolio)
+          axios.post(`${API_BASE_URL}/ai-insights`, { holdings: formattedPortfolio }),
+          axios.post(`${API_BASE_URL}/recommendations`, { holdings: formattedPortfolio })
         ]);
       })
       .then(([aiResponse, recommendationResponse]) => {
@@ -381,7 +381,7 @@ function App() {
         {portfolio.map((asset, index) => (
           <div
             key={index}
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4"
+            className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4"
           >
             <select
               value={asset.asset_type}
@@ -390,11 +390,21 @@ function App() {
             >
               <option>Stock</option>
               <option>Mutual Fund</option>
+              <option>Forex</option>
+              <option>Crypto</option>
             </select>
 
             <input
               type="text"
-              placeholder={asset.asset_type === "Mutual Fund" ? "Fund ticker or name" : "Stock Symbol"}
+              placeholder={
+                asset.asset_type === "Mutual Fund"
+                  ? "Fund ticker or name"
+                  : asset.asset_type === "Forex"
+                    ? "Forex symbol"
+                    : asset.asset_type === "Crypto"
+                      ? "Crypto symbol"
+                      : "Stock symbol"
+              }
               value={asset.symbol}
               onChange={(e) => handleChange(index, "symbol", e.target.value)}
               className="p-3 rounded-lg bg-gray-800 border border-gray-700"
@@ -402,7 +412,7 @@ function App() {
 
             <input
               type="number"
-              placeholder={asset.asset_type === "Mutual Fund" ? "Units" : "Quantity"}
+              placeholder="Quantity"
               value={asset.quantity}
               onChange={(e) => handleChange(index, "quantity", e.target.value)}
               className="p-3 rounded-lg bg-gray-800 border border-gray-700"
@@ -605,13 +615,12 @@ function App() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Name</th>
-                    <th className="p-3">Qty / Units</th>
-                    <th className="p-3">Price / NAV</th>
-                    <th className="p-3">Value</th>
-                    <th className="p-3">Risk</th>
+                    <th className="p-3">Asset Type</th>
+                    <th className="p-3">Symbol</th>
+                    <th className="p-3">Quantity</th>
+                    <th className="p-3">Current Value</th>
                     <th className="p-3">Allocation %</th>
+                    <th className="p-3">Volatility</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -621,22 +630,11 @@ function App() {
                       className="border-b border-gray-800 hover:bg-gray-800"
                     >
                       <td className="p-3">{asset.asset_type}</td>
-                      <td className="p-3">
-                        {asset.asset_type === "Mutual Fund" ? asset.fund_name : asset.symbol}
-                      </td>
-                      <td className="p-3">
-                        {asset.asset_type === "Mutual Fund" ? asset.units : asset.quantity}
-                      </td>
-                      <td className="p-3">
-                        {formatCurrency(asset.asset_type === "Mutual Fund" ? asset.nav : asset.latest_price)}
-                      </td>
+                      <td className="p-3">{asset.symbol}</td>
+                      <td className="p-3">{asset.quantity}</td>
                       <td className="p-3">{formatCurrency(asset.current_value)}</td>
-                      <td className="p-3">
-                        {asset.risk_classification || `${asset.volatility}%`}
-                      </td>
-                      <td className="p-3">
-                        {asset.allocation_percentage}%
-                      </td>
+                      <td className="p-3">{asset.allocation_percentage}%</td>
+                      <td className="p-3">{asset.volatility}%</td>
                     </tr>
                   ))}
                 </tbody>

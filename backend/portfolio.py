@@ -1,5 +1,6 @@
 import yfinance as yf
-
+from forex import get_forex_data
+from crypto import get_crypto_data
 
 def get_stock_data(symbol):
     try:
@@ -106,14 +107,19 @@ def get_mutual_fund_history(fund):
 
 def normalize_portfolio(portfolio):
     if isinstance(portfolio, dict):
-        return [
-            {
-                "asset_type": "Stock",
-                "symbol": symbol,
-                "quantity": quantity,
-            }
-            for symbol, quantity in portfolio.items()
-        ]
+        if "holdings" in portfolio and isinstance(portfolio["holdings"], list):
+            portfolio = portfolio["holdings"]
+        elif "portfolio" in portfolio and isinstance(portfolio["portfolio"], list):
+            portfolio = portfolio["portfolio"]
+        else:
+            return [
+                {
+                    "asset_type": "Stock",
+                    "symbol": symbol,
+                    "quantity": quantity,
+                }
+                for symbol, quantity in portfolio.items()
+            ]
 
     if not isinstance(portfolio, list):
         return []
@@ -121,8 +127,27 @@ def normalize_portfolio(portfolio):
     normalized = []
 
     for item in portfolio:
-        asset_type = item.get("asset_type") or item.get("assetType") or "Stock"
-        asset_type = "Mutual Fund" if asset_type.lower() == "mutual fund" else "Stock"
+        raw_type = (item.get("asset_type") or item.get("assetType") or "").strip()
+        raw_type_lower = raw_type.lower()
+
+        if "mutual" in raw_type_lower:
+            asset_type = "Mutual Fund"
+        elif "forex" in raw_type_lower or raw_type_lower == "fx":
+            asset_type = "Forex"
+        elif "crypto" in raw_type_lower or "coin" in raw_type_lower or "crypto" in raw_type_lower:
+            asset_type = "Crypto"
+        elif "stock" in raw_type_lower or "equity" in raw_type_lower:
+            asset_type = "Stock"
+        else:
+            # Try to infer from symbol if not provided
+            possible_symbol = (item.get("symbol") or item.get("fund") or "").strip()
+            ps = possible_symbol.upper()
+            if ps.endswith("=X") or "/" in ps:
+                asset_type = "Forex"
+            elif "-" in ps and any(c.isalpha() for c in ps):
+                asset_type = "Crypto"
+            else:
+                asset_type = "Stock"
 
         symbol = (item.get("symbol") or item.get("fund") or item.get("fund_name") or "").strip()
         quantity = item.get("quantity")
@@ -132,7 +157,11 @@ def normalize_portfolio(portfolio):
             quantity = units if units not in (None, "") else quantity
 
         try:
-            numeric_quantity = float(quantity)
+            # allow quantities like "1,000"
+            if isinstance(quantity, str):
+                numeric_quantity = float(quantity.replace(",", ""))
+            else:
+                numeric_quantity = float(quantity)
         except (TypeError, ValueError):
             numeric_quantity = 0
 
@@ -179,6 +208,48 @@ def analyze_portfolio(portfolio):
             }
 
             mutual_fund_details.append(detail)
+            portfolio_details.append(detail)
+            total_value += current_value
+            continue
+
+        if holding["asset_type"] == "Forex":
+            forex_data = get_forex_data(holding["symbol"])
+
+            if "error" in forex_data:
+                continue
+
+            current_value = forex_data["rate"] * holding["quantity"]
+            detail = {
+                "asset_type": "Forex",
+                "symbol": holding["symbol"],
+                "rate": forex_data["rate"],
+                "quantity": holding["quantity"],
+                "investment_value": round(current_value, 2),
+                "current_value": round(current_value, 2),
+                "volatility": 5,
+            }
+
+            portfolio_details.append(detail)
+            total_value += current_value
+            continue
+
+        if holding["asset_type"] == "Crypto":
+            crypto_data = get_crypto_data(holding["symbol"])
+
+            if "error" in crypto_data:
+                continue
+
+            current_value = crypto_data["price"] * holding["quantity"]
+            detail = {
+                "asset_type": "Crypto",
+                "symbol": holding["symbol"],
+                "latest_price": crypto_data["price"],
+                "quantity": holding["quantity"],
+                "investment_value": round(current_value, 2),
+                "current_value": round(current_value, 2),
+                "volatility": 25,
+            }
+
             portfolio_details.append(detail)
             total_value += current_value
             continue

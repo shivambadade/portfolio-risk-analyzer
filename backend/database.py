@@ -54,7 +54,23 @@ def _normalize_holding(holding):
         "F&O",
     ]
 
-    asset_type = holding.get("asset_type") or holding.get("assetType") or "Stock"
+    asset_type = (
+        holding.get("asset_type")
+        or holding.get("assetType")
+        or "Stock"
+    )
+
+    valid_types = [
+        "Stock",
+        "Mutual Fund",
+        "Forex",
+        "Crypto",
+        "Option",
+        "Future"
+    ]
+
+    if asset_type not in valid_types:
+        asset_type = "Stock"
 
     if isinstance(asset_type, str):
         asset_type = asset_type.strip()
@@ -96,6 +112,9 @@ def _normalize_holding(holding):
         "units": units if units not in (None, "") else quantity,
         "current_value": holding.get("current_value") or holding.get("currentValue"),
         "allocation_percentage": holding.get("allocation_percentage") or holding.get("allocationPercentage"),
+        "strike_price": holding.get("strike_price"),
+        "expiry_date": holding.get("expiry_date"),
+        "option_type": holding.get("option_type"),
     }
 
 

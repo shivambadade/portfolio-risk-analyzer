@@ -24,29 +24,24 @@ const API_BASE_URL = "http://127.0.0.1:5000";
 const emptyHolding = {
   asset_type: "Stock",
   symbol: "",
-  quantity: ""
+  quantity: "",
+  investment_amount: ""
 };
 
 
 function App() {
-  const [comparisonData, setComparisonData] = useState(null);
-  const [portfolioA] = useState({
-    AAPL: 10
-  });
-  const [portfolioB] = useState({
-    MSFT: 10
-  });
   const [portfolio, setPortfolio] = useState([
     { ...emptyHolding }
   ]);
   const [portfolioData, setPortfolioData] = useState(null);
-  const [historyData, setHistoryData] = useState([]);
+  
   const [savedPortfolios, setSavedPortfolios] = useState([]);
   const [insights, setInsights] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [question, setQuestion] = useState("");
   const [chatResponse, setChatResponse] = useState("");
   const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [messages, setMessages] = useState([]);
 
@@ -62,29 +57,39 @@ function App() {
   const chartAssets = useMemo(() => {
     if (!portfolioData) return [];
 
-    return portfolioData.assets || portfolioData.stocks || [];
+    const data = portfolioData.assets || portfolioData.stocks || [];
+    return Array.isArray(data) ? data : [];
   }, [portfolioData]);
 
   const formatCurrency = (value) => `Rs. ${Number(value || 0).toLocaleString("en-IN")}`;
 
-  const formatPortfolioPayload = () => portfolio
+  const formatPortfolioPayload = () => (Array.isArray(portfolio) ? portfolio : [])
     .map(item => {
       const assetType = item.asset_type || "Stock";
       const quantity = Number(item.quantity);
-
-      return {
+      const investmentAmount = Number(item.investment_amount);
+      const holding = {
         asset_type: assetType,
         symbol: item.symbol.trim(),
-        quantity,
-        units: quantity
       };
+
+      if (quantity > 0) {
+        holding.quantity = quantity;
+        holding.units = quantity;
+      }
+
+      if (investmentAmount > 0) {
+        holding.investment_amount = investmentAmount;
+      }
+
+      return holding;
     })
-    .filter(item => item.symbol && item.quantity > 0);
+    .filter(item => item.symbol && (item.quantity > 0 || item.investment_amount > 0));
 
   const loadSavedPortfolios = () => {
     axios.get(`${API_BASE_URL}/portfolios`)
       .then(response => {
-        setSavedPortfolios(response.data.portfolios || []);
+        setSavedPortfolios(Array.isArray(response.data.portfolios) ? response.data.portfolios : []);
       })
       .catch(() => {
         setStatusMessage("Saved portfolios could not be loaded.");
@@ -118,37 +123,20 @@ function App() {
       header: true,
       skipEmptyLines: true,
       complete: function(results) {
-        const parsedPortfolio = results.data.map(item => ({
+        const rows = Array.isArray(results.data) ? results.data : [];
+        const parsedPortfolio = rows.map(item => ({
           asset_type: item.asset_type || item.assetType || "Stock",
           symbol: item.symbol || item.fund || item.fund_name || "",
-          quantity: item.quantity || item.units || ""
+          quantity: item.quantity || item.units || "",
+          investment_amount: item.investment_amount || item.investmentAmount || item.amount || ""
         }));
 
-        setPortfolio(parsedPortfolio);
+        setPortfolio(Array.isArray(parsedPortfolio) ? parsedPortfolio : [{ ...emptyHolding }]);
       }
     });
   };
 
-  const fetchHistory = (analysis) => {
-    const firstAsset = (analysis.assets || analysis.stocks || [])[0];
-
-    if (!firstAsset) {
-      setHistoryData([]);
-      return;
-    }
-
-    const url = firstAsset.asset_type === "Mutual Fund"
-      ? `${API_BASE_URL}/mutual-fund-history/${encodeURIComponent(firstAsset.symbol)}`
-      : `${API_BASE_URL}/history/${firstAsset.symbol}`;
-
-    axios.get(url)
-      .then(historyResponse => {
-        setHistoryData(historyResponse.data);
-      })
-      .catch(() => {
-        setHistoryData([]);
-      });
-  };
+  
 
   const analyzePortfolio = () => {
     setLoading(true);
@@ -161,8 +149,8 @@ function App() {
       { holdings: formattedPortfolio }
     )
       .then(response => {
-        setPortfolioData(response.data);
-        fetchHistory(response.data);
+        const data = response.data || {};
+        setPortfolioData(data);
 
         return Promise.all([
           axios.post(`${API_BASE_URL}/ai-insights`, { holdings: formattedPortfolio }),
@@ -170,8 +158,8 @@ function App() {
         ]);
       })
       .then(([aiResponse, recommendationResponse]) => {
-        setInsights(aiResponse.data.insights || []);
-        setRecommendations(recommendationResponse.data.recommendations || []);
+        setInsights(Array.isArray(aiResponse.data?.insights) ? aiResponse.data.insights : []);
+        setRecommendations(Array.isArray(recommendationResponse.data?.recommendations) ? recommendationResponse.data.recommendations : []);
       })
       .catch(error => {
         setStatusMessage(error.response?.data?.error || "Portfolio analysis failed.");
@@ -200,10 +188,12 @@ function App() {
   const loadPortfolio = (portfolioId) => {
     axios.get(`${API_BASE_URL}/portfolio/${portfolioId}`)
       .then(response => {
-        const holdings = response.data.holdings.map(item => ({
+        const holdingsData = Array.isArray(response.data.holdings) ? response.data.holdings : [];
+        const holdings = holdingsData.map(item => ({
           asset_type: item.asset_type,
           symbol: item.symbol,
-          quantity: item.quantity
+          quantity: item.quantity,
+          investment_amount: item.investment_amount || ""
         }));
 
         setPortfolio(holdings.length ? holdings : [{ ...emptyHolding }]);
@@ -226,131 +216,204 @@ function App() {
   };
 
   const askChatbot = () => {
-
-  const formattedPortfolio = {};
-
-  portfolio.forEach(stock => {
-
-    if (
-      stock.symbol &&
-      stock.quantity
-    ) {
-
-      formattedPortfolio[
-        stock.symbol.toUpperCase()
-      ] = Number(stock.quantity);
+    if (!question.trim()) {
+      setStatusMessage("Please enter a question for the AI.");
+      return;
     }
-  });
 
-  const userMessage = {
-    role: "user",
-    content: question
-  };
-
-  setMessages(prev => [
-    ...prev,
-    userMessage
-  ]);
-
-  axios.post(
-    "http://127.0.0.1:5000/chatbot",
-    {
-      question,
-      portfolio: formattedPortfolio
-    }
-  )
-
-  .then(response => {
-
-    const aiMessage = {
-      role: "assistant",
-      content: response.data.response
+    const formattedPortfolio = formatPortfolioPayload();
+    const userMessage = {
+      role: "user",
+      content: question.trim()
     };
 
-    setMessages(prev => [
-      ...prev,
-      aiMessage
-    ]);
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
+    setChatLoading(true);
+    setStatusMessage("");
 
-    setQuestion("");
-  })
-
-  .catch(error => {
-
-    console.log(error);
-  });
-};
-
-  const comparePortfolios = () => {
     axios.post(
-      `${API_BASE_URL}/compare-portfolios`,
+      `${API_BASE_URL}/chatbot`,
       {
-        portfolioA,
-        portfolioB
+        question: userMessage.content,
+        portfolio: formattedPortfolio,
+        messages: nextMessages
       }
     )
       .then(response => {
-        setComparisonData(response.data);
+        const aiMessage = {
+          role: "assistant",
+          content: response.data.response
+        };
+
+        setMessages(prev => [
+          ...prev,
+          aiMessage
+        ]);
+        setChatResponse(response.data.response);
+        setQuestion("");
       })
-      .catch(() => {
-        setStatusMessage("Portfolio comparison failed.");
+      .catch(error => {
+        setStatusMessage(error.response?.data?.error || "Chatbot request failed.");
+      })
+      .finally(() => {
+        setChatLoading(false);
       });
+  };
+
+  const handleChatKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      askChatbot();
+    }
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+    setChatResponse("");
+    setStatusMessage("");
   };
 
   const downloadReport = () => {
     if (!portfolioData) return;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 48;
+    doc.setLineHeightFactor(1.35);
 
-    const doc = new jsPDF();
+    // Title (centered)
+    const title = 'Portfolio Risk Analysis Report';
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, pageWidth / 2, 70, { align: 'center' });
 
-    doc.setFontSize(18);
-    doc.text("Portfolio Risk Analysis Report", 14, 20);
+    // Generated timestamp (right)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const now = new Date();
+    doc.text(`Generated: ${now.toLocaleString()}`, pageWidth - margin, 88, { align: 'right' });
 
-    doc.setFontSize(12);
-    doc.text(`Portfolio Value: ${formatCurrency(portfolioData.total_portfolio_value)}`, 14, 35);
-    doc.text(`Risk Score: ${portfolioData.risk_score}`, 14, 45);
-    doc.text(`Diversification: ${portfolioData.diversification}`, 14, 55);
-    doc.text(`Health Score: ${portfolioData.health_score}/100`, 14, 65);
+    // Horizontal rule
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.5);
+    doc.line(margin, 96, pageWidth - margin, 96);
 
+    // Summary box with light background
+    const summaryY = 110;
+    const boxHeight = 64;
+    doc.setFillColor(245, 250, 250);
+    doc.roundedRect(margin, summaryY, pageWidth - margin * 2, boxHeight, 6, 6, 'F');
+
+    doc.setFontSize(11);
+    const leftColX = margin + 12;
+    const rightColX = pageWidth / 2 + 12;
+    doc.text(`Total Portfolio Value: ${formatCurrency(portfolioData.total_portfolio_value)}`, leftColX, summaryY + 20);
+    doc.text(`Diversification: ${portfolioData.diversification}`, leftColX, summaryY + 36);
+    doc.text(`Risk Score: ${portfolioData.risk_score}`, rightColX, summaryY + 20);
+    doc.text(`Health Score: ${portfolioData.health_score}/100`, rightColX, summaryY + 36);
+    if (portfolioData.top_risk_asset) {
+      doc.setFontSize(10);
+      doc.text(`Top Exposure: ${portfolioData.top_risk_asset}`, leftColX, summaryY + 52);
+    }
+
+    // Spacing before table
+    const tableStart = summaryY + boxHeight + 24;
+
+    // Asset table with nicer styling
     autoTable(doc, {
-      startY: 80,
+      startY: tableStart,
+      margin: { left: margin, right: margin },
+      styles: { font: 'helvetica', fontSize: 10, cellPadding: 8, overflow: 'linebreak' },
+      headStyles: { fillColor: [22, 160, 133], textColor: 255, halign: 'center' },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      theme: 'grid',
       head: [[
-        "Type",
-        "Name",
-        "Qty / Units",
-        "Price / NAV",
-        "Risk",
-        "Allocation %"
+        'Type', 'Name', 'Qty / Units', 'Invested Amount', 'Price / NAV', 'Current Value', 'Allocation %', 'Volatility'
       ]],
-      body: chartAssets.map(asset => [
+      body: (Array.isArray(chartAssets) ? chartAssets : []).map(asset => [
         asset.asset_type,
-        asset.asset_type === "Mutual Fund" ? asset.fund_name : asset.symbol,
-        asset.asset_type === "Mutual Fund" ? asset.units : asset.quantity,
-        asset.asset_type === "Mutual Fund" ? asset.nav : asset.latest_price,
-        asset.risk_classification || `${asset.volatility}%`,
-        asset.allocation_percentage
+        asset.asset_type === 'Mutual Fund' ? asset.fund_name || asset.symbol : asset.symbol,
+        asset.asset_type === 'Mutual Fund' ? (asset.units != null ? asset.units : '-') : (asset.quantity != null ? asset.quantity : '-'),
+        asset.investment_amount ? formatCurrency(asset.investment_amount) : '-',
+        asset.asset_type === 'Mutual Fund' ? (asset.nav != null ? asset.nav : '-') : (asset.latest_price != null ? asset.latest_price : '-'),
+        asset.current_value ? formatCurrency(asset.current_value) : '-',
+        asset.allocation_percentage != null ? `${asset.allocation_percentage}%` : '-',
+        asset.volatility != null ? `${asset.volatility}%` : '-'
       ])
     });
 
-    let currentY = doc.lastAutoTable.finalY + 15;
+    let currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 20 : tableStart + 180;
 
-    doc.text("AI Insights", 14, currentY);
-    currentY += 10;
+    // Positive impact suggestions (tailored) with spacing and wrapping
+    const positiveSuggestions = [];
+    if (portfolioData.diversification === 'Poor') {
+      positiveSuggestions.push('Improve diversification by adding broad ETFs or mutual funds across different sectors.');
+    }
+    if (portfolioData.risk_score > 40) {
+      positiveSuggestions.push('Reduce exposure to highly volatile holdings and consider reallocating to lower-risk assets.');
+    }
+    if (portfolioData.health_score < 60) {
+      positiveSuggestions.push('Increase allocation to stable assets (e.g., index funds, bonds) to improve portfolio health.');
+    }
+    positiveSuggestions.push('Consider dollar-cost averaging for new investments to lower timing risk.');
+    positiveSuggestions.push('Prefer low-cost index ETFs for long-term, tax-efficient growth.');
 
-    insights.forEach(insight => {
-      doc.text(`- ${insight}`, 14, currentY);
-      currentY += 8;
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Positive Impact Suggestions', margin, currentY);
+    currentY += 18;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const maxTextWidth = pageWidth - margin * 2 - 20;
+    positiveSuggestions.forEach(s => {
+      const lines = doc.splitTextToSize(`- ${s}`, maxTextWidth);
+      doc.text(lines, margin + 12, currentY);
+      currentY += lines.length * 14;
+      if (currentY > 760) { doc.addPage(); currentY = margin; }
     });
 
-    currentY += 10;
-    doc.text("Recommendations", 14, currentY);
-    currentY += 10;
+    currentY += 8;
 
-    recommendations.forEach(item => {
-      doc.text(`- ${item}`, 14, currentY);
-      currentY += 8;
-    });
+    // Recommendations (from backend)
+    if (Array.isArray(recommendations) && recommendations.length) {
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Recommendations', margin, currentY);
+      currentY += 18;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      recommendations.forEach(r => {
+        const lines = doc.splitTextToSize(`- ${r}`, maxTextWidth);
+        doc.text(lines, margin + 12, currentY);
+        currentY += lines.length * 14;
+        if (currentY > 760) { doc.addPage(); currentY = margin; }
+      });
+    }
 
-    doc.save("Portfolio_Report.pdf");
+    currentY += 8;
+
+    // AI Insights
+    if (Array.isArray(insights) && insights.length) {
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('AI Insights', margin, currentY);
+      currentY += 18;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      insights.forEach(i => {
+        const lines = doc.splitTextToSize(`- ${i}`, maxTextWidth);
+        doc.text(lines, margin + 12, currentY);
+        currentY += lines.length * 14;
+        if (currentY > 760) { doc.addPage(); currentY = margin; }
+      });
+    }
+
+    // Footer centered
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Generated by Portfolio Risk Analyzer', pageWidth / 2, 820, { align: 'center' });
+
+    doc.save('Portfolio_Report.pdf');
   };
 
   return (
@@ -381,7 +444,7 @@ function App() {
         {portfolio.map((asset, index) => (
           <div
             key={index}
-            className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4"
+            className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4"
           >
             <select
               value={asset.asset_type}
@@ -415,6 +478,15 @@ function App() {
               placeholder="Quantity"
               value={asset.quantity}
               onChange={(e) => handleChange(index, "quantity", e.target.value)}
+              className="p-3 rounded-lg bg-gray-800 border border-gray-700"
+            />
+
+            <input
+              type="number"
+              placeholder="Invested Amount"
+              step="0.01"
+              value={asset.investment_amount}
+              onChange={(e) => handleChange(index, "investment_amount", e.target.value)}
               className="p-3 rounded-lg bg-gray-800 border border-gray-700"
             />
           </div>
@@ -582,28 +654,7 @@ function App() {
               </PieChart>
             </div>
 
-            <div className="bg-gray-900 p-6 rounded-2xl shadow-lg">
-              <h2 className="text-2xl font-semibold mb-6">
-                Asset Trend
-              </h2>
-              <LineChart
-                width={500}
-                height={300}
-                data={historyData}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey={historyData[0]?.nav !== undefined ? "nav" : "close"}
-                  stroke="#3b82f6"
-                  strokeWidth={3}
-                />
-              </LineChart>
-            </div>
+            
           </div>
 
           <div className="bg-gray-900 p-6 rounded-2xl shadow-lg">
@@ -632,6 +683,7 @@ function App() {
                       <td className="p-3">{asset.asset_type}</td>
                       <td className="p-3">{asset.symbol}</td>
                       <td className="p-3">{asset.quantity}</td>
+                      <td className="p-3">{asset.investment_amount ? formatCurrency(asset.investment_amount) : "-"}</td>
                       <td className="p-3">{formatCurrency(asset.current_value)}</td>
                       <td className="p-3">{asset.allocation_percentage}%</td>
                       <td className="p-3">{asset.volatility}%</td>
@@ -667,113 +719,62 @@ function App() {
           </div>
 
           <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
-            <h2 className="text-2xl font-semibold mb-6 text-purple-400">
-              Portfolio Comparison
-            </h2>
-            <button
-              onClick={comparePortfolios}
-              className="bg-purple-600 hover:bg-purple-700 px-5 py-3 rounded-lg font-semibold"
-            >
-              Compare Sample Portfolios
-            </button>
-          </div>
-
-          {comparisonData && (
-            <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-6">
-              <table className="w-full text-left">
-                <thead>
-                  <tr>
-                    <th className="p-3">Metric</th>
-                    <th className="p-3">Portfolio A</th>
-                    <th className="p-3">Portfolio B</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="p-3">Risk Score</td>
-                    <td className="p-3">
-                      {comparisonData.portfolioA.risk_score}
-                    </td>
-                    <td className="p-3">
-                      {comparisonData.portfolioB.risk_score}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="p-3">Health Score</td>
-                    <td className="p-3">
-                      {comparisonData.portfolioA.health_score}
-                    </td>
-                    <td className="p-3">
-                      {comparisonData.portfolioB.health_score}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="p-3">Diversification</td>
-                    <td className="p-3">
-                      {comparisonData.portfolioA.diversification}
-                    </td>
-                    <td className="p-3">
-                      {comparisonData.portfolioB.diversification}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-green-400">
+                AI Financial Assistant
+              </h2>
+              <button
+                onClick={clearChat}
+                disabled={chatLoading}
+                className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm"
+              >
+                Clear Chat
+              </button>
             </div>
-          )}
 
-          <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mt-10">
+            <div className="space-y-3 mb-4 max-h-80 overflow-y-auto pr-2">
+              {messages.length === 0 && (
+                <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 text-gray-400">
+                  Start a conversation with the AI assistant about your portfolio.
+                </div>
+              )}
 
-  <h2 className="text-2xl font-semibold mb-6 text-green-400">
-    AI Financial Assistant
-  </h2>
+              {messages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-lg ${msg.role === "user" ? "bg-blue-600 self-end text-white" : "bg-gray-800 text-gray-200"}`}
+                >
+                  <div className="text-xs uppercase tracking-wide text-gray-300 mb-1">
+                    {msg.role === "user" ? "You" : "AI"}
+                  </div>
+                  <p>{msg.content}</p>
+                </div>
+              ))}
+            </div>
 
-  {/* Chat Messages */}
+            <textarea
+              placeholder="Ask about your portfolio..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={handleChatKeyDown}
+              rows={4}
+              className="w-full p-4 rounded-lg bg-gray-800 border border-gray-700 mb-4"
+            />
 
-  <div className="space-y-3 mb-4">
+            <div className="flex flex-wrap gap-4 items-center">
+              <button
+                onClick={askChatbot}
+                disabled={chatLoading}
+                className={`px-5 py-3 rounded-lg font-semibold ${chatLoading ? "bg-gray-600 cursor-not-allowed" : "bg-green-500 hover:bg-green-600"}`}
+              >
+                {chatLoading ? "Thinking..." : "Ask AI"}
+              </button>
+              <span className="text-sm text-gray-400">Press Enter to send.</span>
+            </div>
 
-  {messages.map((msg, index) => (
-
-    <div
-      key={index}
-      className={
-        msg.role === "user"
-          ? "bg-blue-600 p-3 rounded-lg"
-          : "bg-gray-800 p-3 rounded-lg"
-      }
-    >
-
-      <strong>
-        {msg.role === "user"
-          ? "You"
-          : "AI"}
-      </strong>
-
-      <p>{msg.content}</p>
-
-    </div>
-
-  ))}
-
-</div>
-
-  <textarea
-    placeholder="Ask about your portfolio..."
-    value={question}
-    onChange={(e) =>
-      setQuestion(e.target.value)
-    }
-    className="w-full p-4 rounded-lg bg-gray-800 border border-gray-700 mb-4"
-  />
-            <button
-              onClick={askChatbot}
-              className="bg-green-500 hover:bg-green-600 px-5 py-3 rounded-lg font-semibold"
-            >
-              Ask AI
-            </button>
-
-            {chatResponse && (
-              <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
-                {chatResponse}
+            {chatLoading && (
+              <div className="mt-4 text-sm text-yellow-300">
+                AI is reviewing your portfolio and question...
               </div>
             )}
           </div>

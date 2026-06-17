@@ -1,5 +1,8 @@
-symbol,quantity
-AAPL,5
-TSLA,2
-NVDA,4
-TCS.NS,8
+asset_type,symbol,quantity,investment_amount,fund_name
+Stock,AAPL,5,,
+Stock,TSLA,2,,
+Stock,NVDA,4,,
+ETF,VOO,,1500,
+Mutual Fund,VFINX,,1500,Vanguard 500 Index Fund
+Crypto,BTC-USD,,12000,
+Forex,EURUSD,,1000,

@@ -105,6 +105,70 @@ def get_mutual_fund_history(fund):
         return []
 
 
+def _parse_numeric_value(value):
+    try:
+        if isinstance(value, str):
+            return float(value.replace(",", ""))
+        return float(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _compute_quantity_from_amount(asset_type, symbol, amount):
+    if amount <= 0 or not symbol:
+        return 0
+
+    if asset_type == "Mutual Fund":
+        fund_data = get_mutual_fund_data(symbol)
+        if fund_data is None or fund_data.get("nav") is None:
+            return 0
+        return amount / fund_data["nav"]
+
+    if asset_type == "Forex":
+        forex_data = get_forex_data(symbol)
+        if "error" in forex_data or forex_data.get("rate") is None:
+            return 0
+        return amount / forex_data["rate"]
+
+    if asset_type == "Crypto":
+        crypto_data = get_crypto_data(symbol)
+        if "error" in crypto_data or crypto_data.get("price") is None:
+            return 0
+        return amount / crypto_data["price"]
+
+    stock_data = get_stock_data(symbol)
+    if stock_data is None or stock_data.get("latest_price") is None:
+        return 0
+    return amount / stock_data["latest_price"]
+
+
+def _format_symbol_for_market(asset_type, symbol):
+    if not symbol:
+        return symbol
+
+    s = symbol.strip()
+
+    # Forex: yfinance expects pairs like EURUSD=X or EURUSD=X or "EURUSD=X"
+    if asset_type == "Forex":
+        # common inputs: "EUR/USD", "EURUSD", "EURUSD=X"
+        s2 = s.replace("/", "").upper()
+        if not s2.endswith("=X"):
+            s2 = s2 + "=X"
+        return s2
+
+    # Crypto: yfinance uses formats like BTC-USD
+    if asset_type == "Crypto":
+        s2 = s.replace("/", "-").replace("_", "-")
+        # if input like BTCUSD -> convert to BTC-USD
+        if "-" not in s2 and s2.upper().endswith("USD"):
+            base = s2[:-3]
+            s2 = f"{base}-{s2[-3:]}"
+        return s2.upper()
+
+    # default: return as-is (stocks and funds)
+    return s
+
+
 def normalize_portfolio(portfolio):
     if isinstance(portfolio, dict):
         if "holdings" in portfolio and isinstance(portfolio["holdings"], list):
@@ -134,7 +198,7 @@ def normalize_portfolio(portfolio):
             asset_type = "Mutual Fund"
         elif "forex" in raw_type_lower or raw_type_lower == "fx":
             asset_type = "Forex"
-        elif "crypto" in raw_type_lower or "coin" in raw_type_lower or "crypto" in raw_type_lower:
+        elif "crypto" in raw_type_lower or "coin" in raw_type_lower:
             asset_type = "Crypto"
         elif "stock" in raw_type_lower or "equity" in raw_type_lower:
             asset_type = "Stock"
@@ -152,26 +216,28 @@ def normalize_portfolio(portfolio):
         symbol = (item.get("symbol") or item.get("fund") or item.get("fund_name") or "").strip()
         quantity = item.get("quantity")
         units = item.get("units")
+        investment_amount = item.get("investment_amount") or item.get("investmentAmount") or item.get("amount")
 
         if asset_type == "Mutual Fund":
             quantity = units if units not in (None, "") else quantity
 
-        try:
-            # allow quantities like "1,000"
-            if isinstance(quantity, str):
-                numeric_quantity = float(quantity.replace(",", ""))
-            else:
-                numeric_quantity = float(quantity)
-        except (TypeError, ValueError):
-            numeric_quantity = 0
+        numeric_quantity = _parse_numeric_value(quantity)
+        numeric_investment_amount = _parse_numeric_value(investment_amount)
 
-        if not symbol or numeric_quantity <= 0:
+        if numeric_quantity <= 0 and numeric_investment_amount > 0:
+            numeric_quantity = _compute_quantity_from_amount(asset_type, symbol, numeric_investment_amount)
+
+        # normalize symbol formatting for market data lookups
+        formatted_symbol = _format_symbol_for_market(asset_type, symbol)
+
+        if not formatted_symbol or numeric_quantity <= 0:
             continue
 
         normalized.append({
             "asset_type": asset_type,
-            "symbol": symbol.upper() if asset_type == "Stock" else symbol,
+            "symbol": formatted_symbol.upper() if asset_type == "Stock" else formatted_symbol,
             "quantity": numeric_quantity,
+            "investment_amount": numeric_investment_amount if numeric_investment_amount > 0 else None,
             "fund_name": item.get("fund_name") or item.get("fundName") or symbol,
         })
 

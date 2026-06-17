@@ -188,12 +188,13 @@ def chatbot():
     data = request.get_json(silent=True) or {}
     question = data.get("question")
     portfolio_data = data.get("portfolio")
+    conversation_messages = data.get("messages", [])
 
     if not question:
         return error_response("Question is required.")
 
     portfolio_analysis = analyze_portfolio(portfolio_data)
-    response = get_financial_advice(question, portfolio_analysis)
+    response = get_financial_advice(question, portfolio_analysis, conversation_messages)
 
     return jsonify({
         "response": response,

@@ -128,4 +128,5 @@ http://localhost:3000
 
 ## Author
 
-Aarya Bhende
+Aarya Bhende - Intern
+(PLANITT SOLUTIONS PVT LTD)

@@ -12,6 +12,8 @@ client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[MONGO_DB_NAME]
 portfolios_collection = db["portfolios"]
 holdings_collection = db["portfolio_holdings"]
+users_collection = db["users"]
+chat_messages_collection = db["chat_messages"]
 counters_collection = db["counters"]
 
 
@@ -24,8 +26,24 @@ def init_db():
         )
         portfolios_collection.create_index([("created_at", ASCENDING)])
         holdings_collection.create_index([("portfolio_id", ASCENDING)])
+        users_collection.create_index(
+            [("user_id", ASCENDING)],
+            unique=True,
+        )
+        users_collection.create_index(
+            [("email", ASCENDING)],
+            unique=True,
+            sparse=True,
+        )
+        chat_messages_collection.create_index([("user_id", ASCENDING)])
+        chat_messages_collection.create_index([("created_at", ASCENDING)])
         counters_collection.update_one(
             {"_id": "portfolio_id"},
+            {"$setOnInsert": {"sequence_value": 0}},
+            upsert=True,
+        )
+        counters_collection.update_one(
+            {"_id": "user_id"},
             {"$setOnInsert": {"sequence_value": 0}},
             upsert=True,
         )
@@ -35,14 +53,26 @@ def init_db():
         raise RuntimeError("MongoDB initialization failed.") from exc
 
 
-def _get_next_portfolio_id():
+def _get_next_sequence(name):
     counter = counters_collection.find_one_and_update(
-        {"_id": "portfolio_id"},
+        {"_id": name},
         {"$inc": {"sequence_value": 1}},
         upsert=True,
         return_document=ReturnDocument.AFTER,
     )
     return counter["sequence_value"]
+
+
+def _get_next_portfolio_id():
+    return _get_next_sequence("portfolio_id")
+
+
+def _get_next_user_id():
+    return _get_next_sequence("user_id")
+
+
+def _normalize_email(email):
+    return (email or "").strip().lower()
 
 
 def _normalize_holding(holding):
@@ -59,18 +89,6 @@ def _normalize_holding(holding):
         or holding.get("assetType")
         or "Stock"
     )
-
-    valid_types = [
-        "Stock",
-        "Mutual Fund",
-        "Forex",
-        "Crypto",
-        "Option",
-        "Future"
-    ]
-
-    if asset_type not in valid_types:
-        asset_type = "Stock"
 
     if isinstance(asset_type, str):
         asset_type = asset_type.strip()
@@ -94,6 +112,7 @@ def _normalize_holding(holding):
     symbol = (holding.get("symbol") or holding.get("fund") or holding.get("fund_name") or "").strip()
     quantity = holding.get("quantity")
     units = holding.get("units")
+    investment_amount = holding.get("investment_amount") or holding.get("investmentAmount")
 
     if asset_type == "Mutual Fund":
         quantity = units if units not in (None, "") else quantity
@@ -112,6 +131,7 @@ def _normalize_holding(holding):
         "units": units if units not in (None, "") else quantity,
         "current_value": holding.get("current_value") or holding.get("currentValue"),
         "allocation_percentage": holding.get("allocation_percentage") or holding.get("allocationPercentage"),
+        "investment_amount": investment_amount,
         "strike_price": holding.get("strike_price"),
         "expiry_date": holding.get("expiry_date"),
         "option_type": holding.get("option_type"),
@@ -130,7 +150,97 @@ def _serialize_portfolio(portfolio):
     return serialized
 
 
-def save_portfolio(holdings):
+def _serialize_user(user):
+    serialized = dict(user)
+    serialized.pop("_id", None)
+    return serialized
+
+
+def _serialize_chat_message(message):
+    serialized = dict(message)
+    serialized.pop("_id", None)
+    return serialized
+
+
+def create_user(name, email):
+    name = (name or "").strip()
+    email = _normalize_email(email)
+
+    if not name:
+        raise ValueError("Name is required.")
+
+    if not email:
+        raise ValueError("Email is required.")
+
+    existing_user = users_collection.find_one({"email": email}, {"_id": 0})
+
+    if existing_user:
+        return _serialize_user(existing_user)
+
+    user_id = _get_next_user_id()
+    now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    user = {
+        "user_id": user_id,
+        "name": name,
+        "email": email,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    users_collection.insert_one(user)
+    return _serialize_user(user)
+
+
+def list_users():
+    return [
+        _serialize_user(user)
+        for user in users_collection.find({}, {"_id": 0}).sort("created_at", -1)
+    ]
+
+
+def get_user(user_id):
+    user = users_collection.find_one({"user_id": int(user_id)}, {"_id": 0})
+
+    if user is None:
+        return None
+
+    return _serialize_user(user)
+
+
+def save_chat_message(user_id, user_name, role, content):
+    if role not in ("user", "assistant"):
+        raise ValueError("Chat role must be user or assistant.")
+
+    content = (content or "").strip()
+
+    if not content:
+        raise ValueError("Chat message content is required.")
+
+    message = {
+        "user_id": int(user_id),
+        "user_name": user_name,
+        "role": role,
+        "content": content,
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+    chat_messages_collection.insert_one(message)
+    return _serialize_chat_message(message)
+
+
+def get_chat_history(user_id):
+    messages = chat_messages_collection.find(
+        {"user_id": int(user_id)},
+        {"_id": 0},
+    ).sort("created_at", ASCENDING)
+
+    return [_serialize_chat_message(message) for message in messages]
+
+
+def clear_chat_history(user_id):
+    chat_messages_collection.delete_many({"user_id": int(user_id)})
+
+
+def save_portfolio(holdings, user=None):
     if not isinstance(holdings, list):
         raise ValueError("Holdings must be a list.")
 
@@ -142,10 +252,14 @@ def save_portfolio(holdings):
 
     portfolio_id = _get_next_portfolio_id()
     created_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    user = user or {}
 
     portfolios_collection.insert_one({
         "portfolio_id": portfolio_id,
         "created_at": created_at,
+        "user_id": user.get("user_id"),
+        "user_name": user.get("name"),
+        "user_email": user.get("email"),
     })
 
     documents = []
@@ -154,6 +268,8 @@ def save_portfolio(holdings):
         documents.append({
             "id": index,
             "portfolio_id": portfolio_id,
+            "user_id": user.get("user_id"),
+            "user_name": user.get("name"),
             "symbol": holding["symbol"],
             "quantity": holding["quantity"],
             "asset_type": holding["asset_type"],
@@ -162,6 +278,10 @@ def save_portfolio(holdings):
             "units": holding["units"],
             "current_value": holding["current_value"],
             "allocation_percentage": holding["allocation_percentage"],
+            "investment_amount": holding.get("investment_amount"),
+            "strike_price": holding.get("strike_price"),
+            "expiry_date": holding.get("expiry_date"),
+            "option_type": holding.get("option_type"),
         })
 
     holdings_collection.insert_many(documents)
@@ -169,10 +289,14 @@ def save_portfolio(holdings):
     return get_portfolio(portfolio_id)
 
 
-def list_portfolios():
+def list_portfolios(user_id=None):
     portfolios = []
+    query = {}
 
-    for portfolio in portfolios_collection.find({}, {"_id": 0}).sort("created_at", -1):
+    if user_id not in (None, ""):
+        query["user_id"] = int(user_id)
+
+    for portfolio in portfolios_collection.find(query, {"_id": 0}).sort("created_at", -1):
         portfolio_id = portfolio["portfolio_id"]
         holdings = list(holdings_collection.find({"portfolio_id": portfolio_id}, {"_id": 0}))
         stored_value = sum(float(item.get("current_value") or 0) for item in holdings)

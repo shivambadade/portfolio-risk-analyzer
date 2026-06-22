@@ -334,14 +334,7 @@ function App() {
               }
             ];
 
-<<<<<<< HEAD
-        setMessages(prev => [
-          ...prev,
-          aiMessage
-        ]);
-=======
         setMessages(savedMessages);
->>>>>>> d0d67270ae49c1fc144cc1493ab06600e33187b5
         setQuestion("");
       })
       .catch(error => {

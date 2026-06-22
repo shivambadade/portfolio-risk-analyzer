@@ -10,12 +10,7 @@ import {
   Pie,
   Cell,
   Tooltip,
-  Legend,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid
+  Legend
 } from "recharts";
 
 
@@ -39,7 +34,6 @@ function App() {
   const [insights, setInsights] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [question, setQuestion] = useState("");
-  const [chatResponse, setChatResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -250,7 +244,6 @@ function App() {
           ...prev,
           aiMessage
         ]);
-        setChatResponse(response.data.response);
         setQuestion("");
       })
       .catch(error => {
@@ -270,7 +263,6 @@ function App() {
 
   const clearChat = () => {
     setMessages([]);
-    setChatResponse("");
     setStatusMessage("");
   };
 

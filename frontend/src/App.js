@@ -353,10 +353,6 @@ function App() {
   };
 
   const clearChat = () => {
-<<<<<<< HEAD
-    setMessages([]);
-    setStatusMessage("");
-=======
     if (!currentUser) {
       setMessages([]);
       setStatusMessage("");
@@ -371,7 +367,6 @@ function App() {
       .catch(error => {
         setStatusMessage(error.response?.data?.error || "Chat history could not be cleared.");
       });
->>>>>>> d0d67270ae49c1fc144cc1493ab06600e33187b5
   };
 
   const downloadReport = () => {

@@ -9,10 +9,16 @@ import os
 
 from chatbot import get_financial_advice
 from database import (
+    clear_chat_history,
+    create_user,
     delete_portfolio,
+    get_chat_history,
     get_portfolio,
+    get_user,
     init_db,
     list_portfolios,
+    list_users,
+    save_chat_message,
     save_portfolio,
 )
 from flask import Flask, jsonify, request
@@ -79,6 +85,84 @@ def mutual_fund_history(fund):
     return jsonify(get_mutual_fund_history(fund))
 
 
+@app.route("/users", methods=["POST"])
+def create_user_endpoint():
+    if not DB_READY:
+        return database_unavailable_response()
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        user = create_user(
+            data.get("name"),
+            data.get("email"),
+        )
+    except ValueError as exc:
+        return error_response(str(exc), 422)
+    except Exception:
+        return error_response("Unable to save user.", 500)
+
+    return jsonify({
+        "message": "User saved successfully.",
+        "user": user,
+    }), 201
+
+
+@app.route("/users", methods=["GET"])
+def users_endpoint():
+    if not DB_READY:
+        return database_unavailable_response()
+
+    try:
+        return jsonify({
+            "users": list_users(),
+        })
+    except Exception:
+        return error_response("Unable to load users.", 500)
+
+
+@app.route("/user/<int:user_id>", methods=["GET"])
+def user_endpoint(user_id):
+    if not DB_READY:
+        return database_unavailable_response()
+
+    user = get_user(user_id)
+
+    if user is None:
+        return error_response("User not found.", 404)
+
+    return jsonify(user)
+
+
+@app.route("/chat-history/<int:user_id>", methods=["GET"])
+def chat_history_endpoint(user_id):
+    if not DB_READY:
+        return database_unavailable_response()
+
+    try:
+        return jsonify({
+            "messages": get_chat_history(user_id),
+        })
+    except Exception:
+        return error_response("Unable to load chat history.", 500)
+
+
+@app.route("/chat-history/<int:user_id>", methods=["DELETE"])
+def clear_chat_history_endpoint(user_id):
+    if not DB_READY:
+        return database_unavailable_response()
+
+    try:
+        clear_chat_history(user_id)
+    except Exception:
+        return error_response("Unable to clear chat history.", 500)
+
+    return jsonify({
+        "message": "Chat history cleared.",
+        "user_id": user_id,
+    })
+
+
 @app.route("/portfolio", methods=["POST"])
 def portfolio():
     portfolio_data = request.get_json(silent=True)
@@ -106,9 +190,10 @@ def save_portfolio_endpoint():
 
     holdings = data.get("holdings") if isinstance(data, dict) else data
     holdings = normalize_portfolio(holdings)
+    user = data.get("user") if isinstance(data, dict) else None
 
     try:
-        saved = save_portfolio(holdings)
+        saved = save_portfolio(holdings, user)
     except ValueError as exc:
         return error_response(str(exc), 422)
     except Exception:
@@ -127,7 +212,7 @@ def portfolios():
 
     try:
         return jsonify({
-            "portfolios": list_portfolios(),
+            "portfolios": list_portfolios(request.args.get("user_id")),
         })
     except Exception:
         return error_response("Unable to load saved portfolios.", 500)
@@ -189,15 +274,32 @@ def chatbot():
     question = data.get("question")
     portfolio_data = data.get("portfolio")
     conversation_messages = data.get("messages", [])
+    user = data.get("user") or {}
 
     if not question:
         return error_response("Question is required.")
 
+    if not DB_READY:
+        return database_unavailable_response()
+
+    user_id = user.get("user_id")
+    user_name = user.get("name")
+
+    if not user_id or not user_name:
+        return error_response("Please save your name and email before using chat.", 422)
+
     portfolio_analysis = analyze_portfolio(portfolio_data)
     response = get_financial_advice(question, portfolio_analysis, conversation_messages)
 
+    try:
+        save_chat_message(user_id, user_name, "user", question)
+        save_chat_message(user_id, user_name, "assistant", response)
+    except Exception:
+        return error_response("Unable to save chat history.", 500)
+
     return jsonify({
         "response": response,
+        "messages": get_chat_history(user_id),
     })
 
 

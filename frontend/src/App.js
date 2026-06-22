@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import axios from "axios";
 import jsPDF from "jspdf";
@@ -25,6 +25,12 @@ const emptyHolding = {
 
 
 function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userForm, setUserForm] = useState({
+    name: "",
+    email: ""
+  });
+  const [users, setUsers] = useState([]);
   const [portfolio, setPortfolio] = useState([
     { ...emptyHolding }
   ]);
@@ -80,19 +86,88 @@ function App() {
     })
     .filter(item => item.symbol && (item.quantity > 0 || item.investment_amount > 0));
 
-  const loadSavedPortfolios = () => {
-    axios.get(`${API_BASE_URL}/portfolios`)
+  const loadUsers = useCallback(() => {
+    axios.get(`${API_BASE_URL}/users`)
+      .then(response => {
+        setUsers(Array.isArray(response.data.users) ? response.data.users : []);
+      })
+      .catch(() => {
+        setStatusMessage("Saved users could not be loaded.");
+      });
+  }, []);
+
+  const loadChatHistory = (userId) => {
+    if (!userId) {
+      setMessages([]);
+      return;
+    }
+
+    axios.get(`${API_BASE_URL}/chat-history/${userId}`)
+      .then(response => {
+        setMessages(Array.isArray(response.data.messages) ? response.data.messages : []);
+      })
+      .catch(() => {
+        setMessages([]);
+      });
+  };
+
+  const loadSavedPortfolios = useCallback((userId = currentUser?.user_id) => {
+    const url = userId
+      ? `${API_BASE_URL}/portfolios?user_id=${userId}`
+      : `${API_BASE_URL}/portfolios`;
+
+    axios.get(url)
       .then(response => {
         setSavedPortfolios(Array.isArray(response.data.portfolios) ? response.data.portfolios : []);
       })
       .catch(() => {
         setStatusMessage("Saved portfolios could not be loaded.");
       });
-  };
+  }, [currentUser]);
 
   useEffect(() => {
+    loadUsers();
     loadSavedPortfolios();
-  }, []);
+  }, [loadSavedPortfolios, loadUsers]);
+
+  const saveUser = () => {
+    if (!userForm.name.trim() || !userForm.email.trim()) {
+      setStatusMessage("Please enter both name and email.");
+      return;
+    }
+
+    axios.post(`${API_BASE_URL}/users`, userForm)
+      .then(response => {
+        const savedUser = response.data.user;
+        setCurrentUser(savedUser);
+        setUserForm({
+          name: savedUser.name,
+          email: savedUser.email
+        });
+        setStatusMessage(`Active user: ${savedUser.name}`);
+        loadUsers();
+        loadSavedPortfolios(savedUser.user_id);
+        loadChatHistory(savedUser.user_id);
+      })
+      .catch(error => {
+        setStatusMessage(error.response?.data?.error || "User could not be saved.");
+      });
+  };
+
+  const selectUser = (userId) => {
+    const selectedUser = users.find(user => String(user.user_id) === String(userId));
+
+    if (!selectedUser) return;
+
+    setCurrentUser(selectedUser);
+    setUserForm({
+      name: selectedUser.name,
+      email: selectedUser.email
+    });
+    setStatusMessage(`Active user: ${selectedUser.name}`);
+    loadSavedPortfolios(selectedUser.user_id);
+    loadChatHistory(selectedUser.user_id);
+  };
 
   const handleChange = (index, field, value) => {
     const updatedPortfolio = [...portfolio];
@@ -164,11 +239,19 @@ function App() {
   };
 
   const saveCurrentPortfolio = () => {
+    if (!currentUser) {
+      setStatusMessage("Save your name and email before saving a portfolio.");
+      return;
+    }
+
     const holdings = formatPortfolioPayload();
 
     axios.post(
       `${API_BASE_URL}/save-portfolio`,
-      { holdings }
+      {
+        holdings,
+        user: currentUser
+      }
     )
       .then(() => {
         setStatusMessage("Portfolio saved.");
@@ -210,6 +293,11 @@ function App() {
   };
 
   const askChatbot = () => {
+    if (!currentUser) {
+      setStatusMessage("Save your name and email before using chat.");
+      return;
+    }
+
     if (!question.trim()) {
       setStatusMessage("Please enter a question for the AI.");
       return;
@@ -231,19 +319,29 @@ function App() {
       {
         question: userMessage.content,
         portfolio: formattedPortfolio,
-        messages: nextMessages
+        messages: nextMessages,
+        user: currentUser
       }
     )
       .then(response => {
-        const aiMessage = {
-          role: "assistant",
-          content: response.data.response
-        };
+        const savedMessages = Array.isArray(response.data.messages)
+          ? response.data.messages
+          : [
+              ...nextMessages,
+              {
+                role: "assistant",
+                content: response.data.response
+              }
+            ];
 
+<<<<<<< HEAD
         setMessages(prev => [
           ...prev,
           aiMessage
         ]);
+=======
+        setMessages(savedMessages);
+>>>>>>> d0d67270ae49c1fc144cc1493ab06600e33187b5
         setQuestion("");
       })
       .catch(error => {
@@ -262,8 +360,25 @@ function App() {
   };
 
   const clearChat = () => {
+<<<<<<< HEAD
     setMessages([]);
     setStatusMessage("");
+=======
+    if (!currentUser) {
+      setMessages([]);
+      setStatusMessage("");
+      return;
+    }
+
+    axios.delete(`${API_BASE_URL}/chat-history/${currentUser.user_id}`)
+      .then(() => {
+        setMessages([]);
+        setStatusMessage("Chat history cleared.");
+      })
+      .catch(error => {
+        setStatusMessage(error.response?.data?.error || "Chat history could not be cleared.");
+      });
+>>>>>>> d0d67270ae49c1fc144cc1493ab06600e33187b5
   };
 
   const downloadReport = () => {
@@ -419,6 +534,74 @@ function App() {
         </p>
       </div>
 
+      <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mb-8 max-w-5xl border border-gray-800">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="flex-1">
+            <h2 className="text-2xl font-semibold mb-2">
+              User Panel
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Enter your details once. Portfolios and chat history are saved under your user ID.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-[2]">
+            <input
+              type="text"
+              placeholder="Full name"
+              value={userForm.name}
+              onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+              className="p-3 rounded-lg bg-gray-800 border border-gray-700"
+            />
+
+            <input
+              type="email"
+              placeholder="Email address"
+              value={userForm.email}
+              onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+              className="p-3 rounded-lg bg-gray-800 border border-gray-700"
+            />
+          </div>
+
+          <button
+            onClick={saveUser}
+            className="bg-blue-500 hover:bg-blue-600 px-5 py-3 rounded-lg font-semibold"
+          >
+            Save User
+          </button>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <select
+            value={currentUser?.user_id || ""}
+            onChange={(e) => selectUser(e.target.value)}
+            className="p-3 rounded-lg bg-gray-800 border border-gray-700"
+          >
+            <option value="">Select saved user</option>
+            {users.map(user => (
+              <option
+                key={user.user_id}
+                value={user.user_id}
+              >
+                {user.user_id} - {user.name} ({user.email})
+              </option>
+            ))}
+          </select>
+
+          <div className="p-3 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300">
+            {currentUser
+              ? `Active ID ${currentUser.user_id}: ${currentUser.name} | ${currentUser.email}`
+              : "No active user selected"}
+          </div>
+        </div>
+
+        {statusMessage && (
+          <div className="mt-5 bg-gray-800 border border-gray-700 p-4 rounded-lg text-sm">
+            {statusMessage}
+          </div>
+        )}
+      </div>
+
       <div className="bg-gray-900 p-6 rounded-2xl shadow-lg mb-8 max-w-5xl">
         <h2 className="text-2xl font-semibold mb-6">
           Enter Portfolio
@@ -531,6 +714,7 @@ function App() {
             <thead>
               <tr className="border-b border-gray-700">
                 <th className="p-3">Portfolio ID</th>
+                <th className="p-3">User</th>
                 <th className="p-3">Created</th>
                 <th className="p-3">Holdings</th>
                 <th className="p-3">Actions</th>
@@ -543,6 +727,7 @@ function App() {
                   className="border-b border-gray-800 hover:bg-gray-800"
                 >
                   <td className="p-3">{saved.portfolio_id}</td>
+                  <td className="p-3">{saved.user_name || "Unassigned"}</td>
                   <td className="p-3">{saved.created_at}</td>
                   <td className="p-3">{saved.holdings_count}</td>
                   <td className="p-3">
@@ -565,7 +750,7 @@ function App() {
               ))}
               {savedPortfolios.length === 0 && (
                 <tr>
-                  <td className="p-3 text-gray-400" colSpan="4">
+                  <td className="p-3 text-gray-400" colSpan="5">
                     No saved portfolios yet.
                   </td>
                 </tr>
@@ -727,19 +912,34 @@ function App() {
             <div className="space-y-3 mb-4 max-h-80 overflow-y-auto pr-2">
               {messages.length === 0 && (
                 <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 text-gray-400">
-                  Start a conversation with the AI assistant about your portfolio.
+                  {currentUser
+                    ? `Start a conversation as ${currentUser.name}.`
+                    : "Save your name and email to start a saved conversation."}
                 </div>
               )}
 
               {messages.map((msg, index) => (
                 <div
                   key={index}
-                  className={`p-3 rounded-lg ${msg.role === "user" ? "bg-blue-600 self-end text-white" : "bg-gray-800 text-gray-200"}`}
+                  className={`flex ${msg.role === "user" ? "justify-start" : "justify-end"}`}
                 >
-                  <div className="text-xs uppercase tracking-wide text-gray-300 mb-1">
-                    {msg.role === "user" ? "You" : "AI"}
+                  <div
+                    className={`max-w-2xl p-4 rounded-2xl border ${
+                      msg.role === "user"
+                        ? "bg-gray-800 border-gray-700 text-gray-100 rounded-bl-sm"
+                        : "bg-green-600 border-green-500 text-white rounded-br-sm"
+                    }`}
+                  >
+                    <div className="text-xs uppercase tracking-wide opacity-80 mb-1">
+                      {msg.role === "user" ? `${currentUser?.name || "Question"}` : "AI Answer"}
+                    </div>
+                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    {msg.created_at && (
+                      <div className="mt-2 text-xs opacity-70">
+                        {new Date(msg.created_at).toLocaleString()}
+                      </div>
+                    )}
                   </div>
-                  <p>{msg.content}</p>
                 </div>
               ))}
             </div>

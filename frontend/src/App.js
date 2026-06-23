@@ -10,7 +10,8 @@ import {
   Pie,
   Cell,
   Tooltip,
-  Legend
+  Legend,
+  ResponsiveContainer
 } from "recharts";
 
 
@@ -512,12 +513,12 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="mb-10">
-        <h1 className="text-5xl font-bold text-blue-400">
+    <div className="min-h-screen bg-gray-950 text-white p-4 md:p-8">
+      <div className="mb-8 md:mb-10">
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-blue-400">
           Portfolio Risk Analyzer
         </h1>
-        <p className="text-gray-400 mt-3 text-lg">
+        <p className="text-gray-400 mt-2 md:mt-3 text-base md:text-lg">
           AI-powered fintech dashboard for portfolio analytics
         </p>
       </div>
@@ -607,7 +608,7 @@ function App() {
         {portfolio.map((asset, index) => (
           <div
             key={index}
-            className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4"
+            className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4 mb-4 pb-4 md:pb-0 border-b md:border-0 border-gray-800"
           >
             <select
               value={asset.asset_type}
@@ -756,7 +757,7 @@ function App() {
 
       {portfolioData && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-10">
             <div className="bg-gray-900 p-6 rounded-2xl shadow-lg">
               <h3 className="text-gray-400 mb-2">
                 Total Portfolio Value
@@ -794,29 +795,33 @@ function App() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-8 md:mb-10">
             <div className="bg-gray-900 p-6 rounded-2xl shadow-lg">
-              <h2 className="text-2xl font-semibold mb-6">
+              <h2 className="text-xl md:text-2xl font-semibold mb-6">
                 Portfolio Allocation
               </h2>
-              <PieChart width={400} height={300}>
-                <Pie
-                  data={chartAssets}
-                  dataKey="allocation_percentage"
-                  nameKey="symbol"
-                  outerRadius={100}
-                  label
-                >
-                  {chartAssets.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
+              <div className="w-full h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartAssets}
+                      dataKey="allocation_percentage"
+                      nameKey="symbol"
+                      outerRadius={100}
+                      label
+                    >
+                      {chartAssets.map((entry, index) => (
+                        <Cell
+                          key={index}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             
